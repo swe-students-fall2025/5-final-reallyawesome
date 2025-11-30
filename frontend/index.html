@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Emotional Pet - Home</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="assets/css/styles.css">
+  </head>
+  <body class="bg-body-tertiary">
+    <header class="hero-gradient text-white">
+      <div class="container py-4 d-flex justify-content-between align-items-center">
+        <a class="brand-link d-flex align-items-center gap-3 text-decoration-none text-white" href="index.html">
+          <div class="rounded-circle bg-white bg-opacity-25 text-white px-3 py-2 fw-bold">EP</div>
+          <div>
+            <div class="fw-semibold">Emotional Pet</div>
+            <small class="text-white-50">Daily mood companion</small>
+          </div>
+        </a>
+        <nav class="d-flex gap-4 align-items-center">
+          <div class="d-flex align-items-center gap-4">
+            <a class="nav-link nav-link-light" href="index.html">Home</a>
+            <a class="nav-link nav-link-light" href="history-report.html">History</a>
+            <a class="d-flex flex-column align-items-center gap-1 user-meta text-decoration-none" href="user-profile.html">
+              <div class="avatar-sm bg-white bg-opacity-25 rounded-circle"></div>
+              <span class="fw-semibold text-white">Username</span>
+            </a>
+          </div>
+          <div class="d-flex flex-column align-items-end gap-2 ms-2 auth-action-stack">
+            <a class="btn btn-outline-light btn-sm" href="signup.html">Sign up</a>
+            <a class="btn btn-outline-light btn-sm" href="login.html">Log in</a>
+            <button class="btn btn-outline-light btn-sm">Logout</button>
+          </div>
+        </nav>
+      </div>
+      <div class="container pb-4">
+        <div class="d-flex justify-content-center align-items-center">
+          <div class="text-center">
+            <div class="fw-semibold">Today</div>
+            <small class="text-white-50" id="dateLabel">—</small>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="container home-stack">
+      <section class="card panel">
+        <div class="card-body">
+          <div class="text-center mb-4">
+            <div class="text-uppercase text-muted small">Pet stage</div>
+            <div class="fw-semibold h5 mb-0">Egg (warming up)</div>
+          </div>
+          <div class="d-flex flex-column align-items-center gap-4">
+            <div class="ring-wrap ring-wrap-large">
+              <div class="ring">
+                <div class="ring-value text-center">
+                  <div class="fw-bold h4 mb-0" id="statusTitle">Hatching...</div>
+                  <small class="text-muted d-block" id="statusSubtitle">Awaiting today’s mood upload</small>
+                </div>
+              </div>
+            </div>
+            <div class="row text-center gy-4 w-100 justify-content-center metrics-row">
+              <div class="col-12 col-md-4">
+                <div class="text-muted small text-uppercase">Morning</div>
+                <div class="photo-slot mt-2 mb-2 d-flex align-items-center justify-content-center">Photo placeholder</div>
+                <button class="btn btn-primary btn-sm mt-3">Upload photo</button>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="text-muted small text-uppercase">Afternoon</div>
+                <div class="photo-slot mt-2 mb-2 d-flex align-items-center justify-content-center">Photo placeholder</div>
+                <button class="btn btn-primary btn-sm mt-3">Upload photo</button>
+              </div>
+              <div class="col-12 col-md-4">
+                <div class="text-muted small text-uppercase">Evening</div>
+                <div class="photo-slot mt-2 mb-2 d-flex align-items-center justify-content-center">Photo placeholder</div>
+                <button class="btn btn-primary btn-sm mt-3">Upload photo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card panel">
+        <div class="card-body">
+          <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-4">
+            <div class="incubation-track w-100 w-lg-50">
+              <div class="incubation-bar" id="incubationBar" style="width: 35%;"></div>
+              <div class="incubation-label" id="incubationPct">35%</div>
+            </div>
+            <div>
+              <div class="text-uppercase text-muted small">Incubation</div>
+              <div class="fw-semibold" id="incubationText">Hatching in progress</div>
+              <small class="text-muted">Tap progress to see report & pet state</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+    <script src="assets/js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Emotional Pet - Profile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <link rel="stylesheet" href="assets/css/styles.css">
+  </head>
+  <body class="bg-body-tertiary">
+    <header class="hero-gradient text-white">
+      <div class="container py-4 d-flex justify-content-between align-items-center">
+        <a class="brand-link d-flex align-items-center gap-2 text-decoration-none text-white" href="index.html">
+          <div class="rounded-circle bg-white bg-opacity-25 text-white px-3 py-2 fw-bold">EP</div>
+          <div>
+            <div class="fw-semibold">Emotional Pet</div>
+            <small class="text-white-50">Profile</small>
+          </div>
+        </a>
+        <nav class="d-flex gap-3 align-items-center">
+          <a class="text-decoration-none nav-link-light" href="index.html">Home</a>
+          <a class="text-decoration-none nav-link-light" href="history-report.html">History</a>
+          <a class="d-flex flex-column align-items-center gap-1 user-meta text-decoration-none fw-semibold" href="user-profile.html">
+            <div class="avatar-sm bg-white bg-opacity-25 rounded-circle"></div>
+            <span class="fw-semibold text-white">Username</span>
+          </a>
+          <button class="btn btn-outline-light btn-sm">Logout</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container py-4">
+      <div class="row g-4">
+        <section class="col-12">
+          <div class="card panel">
+            <div class="card-body text-center">
+              <div class="rounded-circle bg-body-secondary mx-auto mb-3" style="width: 120px; height: 120px;"></div>
+              <h1 class="h5 mb-1">Username</h1>
+              <p class="text-muted mb-3">Mood explorer</p>
+              <div class="d-grid gap-2 profile-actions mx-auto">
+                <button class="btn btn-primary btn-sm">Edit profile</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="row g-4 mt-1">
+        <section class="col-12">
+          <div class="card panel">
+            <div class="card-body">
+              <h2 class="h6 text-uppercase text-muted mb-3">Account details</h2>
+              <div class="row gy-3">
+                <div class="col-12 col-md-6 col-xl-3">
+                  <div class="text-muted small">Email</div>
+                  <div>user@example.com</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                  <div class="text-muted small">Member since</div>
+                  <div>—</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                  <div class="text-muted small">Uploads</div>
+                  <div>—</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                  <div class="text-muted small">Last activity</div>
+                  <div>—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="row g-4 mt-1">
+        <section class="col-12">
+          <div class="d-flex justify-content-center">
+            <div class="pet-status">
+              <div class="text-muted text-uppercase mb-1">Pet status</div>
+              <div class="fw-bold fs-5">Hatching in progress</div>
+              <div class="text-muted">Stage: egg · Mood: calm</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+  </body>
+</html>
