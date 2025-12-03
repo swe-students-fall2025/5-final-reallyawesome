@@ -10,13 +10,90 @@ except ImportError:  # pragma: no cover
     mongomock = None
 
 
+class _InMemoryInsertResult:
+    def __init__(self, inserted_id):
+        self.inserted_id = inserted_id
+
+
+class _InMemoryCursor:
+    def __init__(self, docs):
+        self.docs = docs
+
+    def sort(self, key, direction):  # direction ignored other than sign
+        reverse = direction == -1
+        return _InMemoryCursor(sorted(self.docs, key=lambda d: d.get(key), reverse=reverse))
+
+    def __iter__(self):
+        return iter(self.docs)
+
+
+class _InMemoryCollection:
+    def __init__(self):
+        self._docs = []
+
+    def create_index(self, *_args, **_kwargs):
+        return None
+
+    def insert_one(self, doc):
+        new_doc = dict(doc)
+        new_doc["_id"] = ObjectId()
+        self._docs.append(new_doc)
+        return _InMemoryInsertResult(new_doc["_id"])
+
+    def insert_many(self, docs):
+        for doc in docs:
+            self.insert_one(doc)
+
+    def find(self, query=None):
+        query = query or {}
+        matched = [doc for doc in self._docs if self._matches(doc, query)]
+        return _InMemoryCursor(matched)
+
+    def find_one(self, query=None):
+        query = query or {}
+        for doc in self._docs:
+            if self._matches(doc, query):
+                return doc
+        return None
+
+    def estimated_document_count(self):
+        return len(self._docs)
+
+    def _matches(self, doc, query):
+        for key, value in query.items():
+            if isinstance(value, dict) and "$regex" in value:
+                pattern = value["$regex"]
+                options = value.get("$options", "")
+                doc_val = str(doc.get(key, ""))
+                if "i" in options.lower():
+                    if pattern.lower() not in doc_val.lower():
+                        return False
+                else:
+                    if pattern not in doc_val:
+                        return False
+            else:
+                if doc.get(key) != value:
+                    return False
+        return True
+
+
+class _InMemoryDB:
+    def __init__(self):
+        self.items = _InMemoryCollection()
+
+    def __getitem__(self, _name):
+        return self
+
+
 class Database:
     def __init__(self, uri: str, db_name: str, use_mock: bool = False):
         self._use_mock = use_mock or os.getenv("USE_MOCK_DB") == "1"
         if self._use_mock:
-            if not mongomock:
-                raise RuntimeError("mongomock is required for mock database usage")
-            self._client = mongomock.MongoClient()
+            if mongomock:
+                self._client = mongomock.MongoClient()
+            else:
+                # Fallback to lightweight in-memory collections for CI/dev
+                self._client = _InMemoryDB()
         else:
             self._client = MongoClient(uri)
         self._db = self._client[db_name]
