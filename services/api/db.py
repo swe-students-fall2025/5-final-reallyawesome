@@ -44,6 +44,8 @@ class Database:
         for doc in self._db.items.find(query).sort("created_at", -1):
             doc = dict(doc)
             doc["id"] = str(doc.pop("_id", ""))
+            if "name" not in doc and "title" in doc:
+                doc["name"] = doc["title"]
             items.append(doc)
         return items
 
@@ -56,12 +58,15 @@ class Database:
             return None
         doc = dict(doc)
         doc["id"] = str(doc.pop("_id", ""))
+        if "name" not in doc and "title" in doc:
+            doc["name"] = doc["title"]
         return doc
 
-    def create_item(self, title: str, price: float, description: str = "", **extra) -> Dict[str, Any]:
+    def create_item(self, title: str, price: float, description: str = "", name: Optional[str] = None, **extra) -> Dict[str, Any]:
         now = datetime.utcnow()
         item = {
             "title": title,
+            "name": name or title,
             "price": price,
             "description": description,
             "created_at": now.isoformat(),
@@ -77,6 +82,7 @@ class Database:
                 [
                     {
                         "title": "Welcome",
+                        "name": "Welcome",
                         "price": 0,
                         "description": "Sample item",
                         "created_at": datetime.utcnow().isoformat(),
@@ -87,6 +93,7 @@ class Database:
                     },
                     {
                         "title": "Notebook",
+                        "name": "Notebook",
                         "price": 5.5,
                         "description": "Stationery",
                         "created_at": datetime.utcnow().isoformat(),

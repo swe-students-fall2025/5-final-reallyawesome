@@ -4,7 +4,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from db import Database
+from .db import Database
 
 
 def _find_root() -> Path:
@@ -308,7 +308,7 @@ def create_app(testing: bool = False):
         except (TypeError, ValueError):
             return jsonify({"error": "price must be a number"}), 400
 
-        item = db.create_item(title=name, price=price_val, description=payload.get("description", ""))
+        item = db.create_item(title=name, name=name, price=price_val, description=payload.get("description", ""))
         return jsonify(item), 201
 
     @app.route("/")
