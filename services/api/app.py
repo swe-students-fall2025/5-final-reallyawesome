@@ -200,10 +200,12 @@ def create_app(testing: bool = False):
     @app.route("/api/favorites", methods=["POST"])
     def add_favorite():
         payload = request.get_json(force=True, silent=True) or {}
-        user_id = str(payload.get("user_id"))
-        listing_id = str(payload.get("listing_id"))
-        if not user_id or not listing_id:
+        user_id = payload.get("user_id")
+        listing_id = payload.get("listing_id")
+        if not user_id or not listing_id or user_id == "None" or listing_id == "None":
             return jsonify({"error": "user_id and listing_id required"}), 400
+        user_id = str(user_id)
+        listing_id = str(listing_id)
         favorites.setdefault(user_id, set()).add(listing_id)
         return jsonify({"ok": True}), 201
 
@@ -227,11 +229,14 @@ def create_app(testing: bool = False):
     @app.route("/api/threads", methods=["POST"])
     def create_thread():
         payload = request.get_json(force=True, silent=True) or {}
-        buyer_id = str(payload.get("buyer_id"))
-        seller_id = str(payload.get("seller_id"))
-        listing_id = str(payload.get("listing_id"))
-        if not buyer_id or not seller_id or not listing_id:
+        buyer_id = payload.get("buyer_id")
+        seller_id = payload.get("seller_id")
+        listing_id = payload.get("listing_id")
+        if not buyer_id or not seller_id or not listing_id or buyer_id == "None" or seller_id == "None" or listing_id == "None":
             return jsonify({"error": "buyer_id, seller_id, listing_id required"}), 400
+        buyer_id = str(buyer_id)
+        seller_id = str(seller_id)
+        listing_id = str(listing_id)
         thread_id = _next_id(threads)
         thread = {
             "id": thread_id,
