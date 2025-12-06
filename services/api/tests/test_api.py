@@ -83,24 +83,30 @@ def test_listings_get_with_filters(client):
 
 
 def test_listings_post_form(client):
-    resp = client.post("/api/listings", data={
-        "title": "Test Book",
-        "price": "15.99",
-        "description": "Test description",
-        "category": "books"
-    })
+    resp = client.post(
+        "/api/listings",
+        data={
+            "title": "Test Book",
+            "price": "15.99",
+            "description": "Test description",
+            "category": "books",
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert data["title"] == "Test Book"
 
 
 def test_listings_post_json(client):
-    resp = client.post("/api/listings", json={
-        "title": "Test Item",
-        "price": 20.5,
-        "description": "Test",
-        "category": "electronics"
-    })
+    resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Test Item",
+            "price": 20.5,
+            "description": "Test",
+            "category": "electronics",
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert data["title"] == "Test Item"
@@ -116,13 +122,16 @@ def test_listings_post_validation(client):
 
 
 def test_get_listing_by_id(client):
-    create_resp = client.post("/api/listings", json={
-        "title": "Test Listing",
-        "price": 25.0
-    })
+    create_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Test Listing",
+            "price": 25.0,
+        },
+    )
     assert create_resp.status_code == 201
     item_id = create_resp.get_json()["id"]
-    
+
     resp = client.get(f"/api/listings/{item_id}")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -149,11 +158,14 @@ def test_get_user_listings(client):
 
 
 def test_register(client):
-    resp = client.post("/api/auth/register", json={
-        "email": "test@example.com",
-        "password": "password123",
-        "nickname": "TestUser"
-    })
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "test@example.com",
+            "password": "password123",
+            "nickname": "TestUser",
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert "token" in data
@@ -169,16 +181,22 @@ def test_register_validation(client):
 
 
 def test_login(client):
-    client.post("/api/auth/register", json={
-        "email": "login@example.com",
-        "password": "password123",
-        "nickname": "LoginUser"
-    })
-    
-    resp = client.post("/api/auth/login", json={
-        "email": "login@example.com",
-        "password": "password123"
-    })
+    client.post(
+        "/api/auth/register",
+        json={
+            "email": "login@example.com",
+            "password": "password123",
+            "nickname": "LoginUser",
+        },
+    )
+
+    resp = client.post(
+        "/api/auth/login",
+        json={
+            "email": "login@example.com",
+            "password": "password123",
+        },
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert "token" in data
@@ -186,21 +204,27 @@ def test_login(client):
 
 
 def test_login_invalid_credentials(client):
-    resp = client.post("/api/auth/login", json={
-        "email": "wrong@example.com",
-        "password": "wrongpassword"
-    })
+    resp = client.post(
+        "/api/auth/login",
+        json={
+            "email": "wrong@example.com",
+            "password": "wrongpassword",
+        },
+    )
     assert resp.status_code == 401
 
 
 def test_get_user(client):
-    register_resp = client.post("/api/auth/register", json={
-        "email": "user@example.com",
-        "password": "password123",
-        "nickname": "TestUser"
-    })
+    register_resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "user@example.com",
+            "password": "password123",
+            "nickname": "TestUser",
+        },
+    )
     user_id = register_resp.get_json()["user"]["id"]
-    
+
     resp = client.get(f"/api/users/{user_id}")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -213,13 +237,16 @@ def test_get_user_not_found(client):
 
 
 def test_upload_avatar(client):
-    register_resp = client.post("/api/auth/register", json={
-        "email": "avatar@example.com",
-        "password": "password123",
-        "nickname": "AvatarUser"
-    })
+    register_resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": "avatar@example.com",
+            "password": "password123",
+            "nickname": "AvatarUser",
+        },
+    )
     user_id = register_resp.get_json()["user"]["id"]
-    
+
     resp = client.post(f"/api/users/{user_id}/avatar")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -228,16 +255,22 @@ def test_upload_avatar(client):
 
 
 def test_add_favorite(client):
-    listing_resp = client.post("/api/listings", json={
-        "title": "Favorite Item",
-        "price": 30.0
-    })
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Favorite Item",
+            "price": 30.0,
+        },
+    )
     listing_id = listing_resp.get_json()["id"]
-    
-    resp = client.post("/api/favorites", json={
-        "user_id": "1",
-        "listing_id": listing_id
-    })
+
+    resp = client.post(
+        "/api/favorites",
+        json={
+            "user_id": "1",
+            "listing_id": listing_id,
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert data["ok"] is True
@@ -253,13 +286,16 @@ def test_add_favorite_validation(client):
 
 
 def test_remove_favorite(client):
-    listing_resp = client.post("/api/listings", json={
-        "title": "Remove Item",
-        "price": 40.0
-    })
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Remove Item",
+            "price": 40.0,
+        },
+    )
     listing_id = listing_resp.get_json()["id"]
     client.post("/api/favorites", json={"user_id": "1", "listing_id": listing_id})
-    
+
     resp = client.delete(f"/api/favorites/{listing_id}?user_id=1")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -272,13 +308,16 @@ def test_remove_favorite_validation(client):
 
 
 def test_get_user_favorites(client):
-    listing_resp = client.post("/api/listings", json={
-        "title": "Favorite Item 2",
-        "price": 50.0
-    })
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Favorite Item 2",
+            "price": 50.0,
+        },
+    )
     listing_id = listing_resp.get_json()["id"]
     client.post("/api/favorites", json={"user_id": "2", "listing_id": listing_id})
-    
+
     resp = client.get("/api/users/2/favorites")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -287,15 +326,33 @@ def test_get_user_favorites(client):
 
 
 def test_create_thread(client):
-    resp = client.post("/api/threads", json={
-        "buyer_id": "1",
-        "seller_id": "2",
-        "listing_id": "3"
-    })
+    # Create a listing owned by seller_id "2"
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Listing for thread",
+            "price": 10.0,
+            "user_id": "2",
+        },
+    )
+    assert listing_resp.status_code == 201
+    listing = listing_resp.get_json()
+    listing_id = listing["id"]
+
+    resp = client.post(
+        "/api/threads",
+        json={
+            "buyer_id": "1",
+            "seller_id": "2",
+            "listing_id": listing_id,
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert "id" in data
     assert data["buyer_id"] == "1"
+    assert data["seller_id"] == "2"
+    assert data["listing_id"] == listing_id
 
 
 def test_create_thread_validation(client):
@@ -306,31 +363,62 @@ def test_create_thread_validation(client):
 
 
 def test_get_threads(client):
-    client.post("/api/threads", json={
-        "buyer_id": "1",
-        "seller_id": "2",
-        "listing_id": "3"
-    })
-    
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Listing for thread list",
+            "price": 12.0,
+            "user_id": "2",
+        },
+    )
+    listing_id = listing_resp.get_json()["id"]
+
+    client.post(
+        "/api/threads",
+        json={
+            "buyer_id": "1",
+            "seller_id": "2",
+            "listing_id": listing_id,
+        },
+    )
+
     resp = client.get("/api/threads/1")
     assert resp.status_code == 200
     data = resp.get_json()
     assert isinstance(data, list)
+    assert len(data) >= 1
 
 
 def test_send_message(client):
-    thread_resp = client.post("/api/threads", json={
-        "buyer_id": "1",
-        "seller_id": "2",
-        "listing_id": "3"
-    })
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Listing for message",
+            "price": 18.0,
+            "user_id": "2",
+        },
+    )
+    listing_id = listing_resp.get_json()["id"]
+
+    thread_resp = client.post(
+        "/api/threads",
+        json={
+            "buyer_id": "1",
+            "seller_id": "2",
+            "listing_id": listing_id,
+        },
+    )
+    assert thread_resp.status_code == 201
     thread_id = thread_resp.get_json()["id"]
-    
-    resp = client.post("/api/messages", json={
-        "thread_id": thread_id,
-        "sender_id": "1",
-        "content": "Hello"
-    })
+
+    resp = client.post(
+        "/api/messages",
+        json={
+            "thread_id": thread_id,
+            "sender_id": "1",
+            "content": "Hello",
+        },
+    )
     assert resp.status_code == 201
     data = resp.get_json()
     assert "id" in data
@@ -343,18 +431,36 @@ def test_send_message_validation(client):
 
 
 def test_get_messages(client):
-    thread_resp = client.post("/api/threads", json={
-        "buyer_id": "1",
-        "seller_id": "2",
-        "listing_id": "3"
-    })
+    listing_resp = client.post(
+        "/api/listings",
+        json={
+            "title": "Listing for messages list",
+            "price": 22.0,
+            "user_id": "2",
+        },
+    )
+    listing_id = listing_resp.get_json()["id"]
+
+    thread_resp = client.post(
+        "/api/threads",
+        json={
+            "buyer_id": "1",
+            "seller_id": "2",
+            "listing_id": listing_id,
+        },
+    )
+    assert thread_resp.status_code == 201
     thread_id = thread_resp.get_json()["id"]
-    client.post("/api/messages", json={
-        "thread_id": thread_id,
-        "sender_id": "1",
-        "content": "Test message"
-    })
-    
+
+    client.post(
+        "/api/messages",
+        json={
+            "thread_id": thread_id,
+            "sender_id": "1",
+            "content": "Test message",
+        },
+    )
+
     resp = client.get(f"/api/threads/{thread_id}/messages")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -394,11 +500,14 @@ def test_dashboard_stats(client):
 
 
 def test_category_stats(client):
-    client.post("/api/listings", json={
-        "title": "Category Test",
-        "price": 15.0,
-        "category": "books"
-    })
+    client.post(
+        "/api/listings",
+        json={
+            "title": "Category Test",
+            "price": 15.0,
+            "category": "books",
+        },
+    )
     resp = client.get("/api/stats/categories")
     assert resp.status_code == 200
     data = resp.get_json()
