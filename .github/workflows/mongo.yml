@@ -1,0 +1,27 @@
+name: Mongo CI/CD
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY_USER: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_USERNAME || github.repository_owner }}
+      IMAGE_TAG: ${{ env.REGISTRY_USER }}/marketplace-mongo:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        working-directory: services/mongo
+        run: docker build -t $IMAGE_TAG .
+      - name: Push Docker image
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != ''
+        run: |
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          docker push $IMAGE_TAG
+      - name: Deploy to DigitalOcean
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          echo "Add your DigitalOcean deployment command here"

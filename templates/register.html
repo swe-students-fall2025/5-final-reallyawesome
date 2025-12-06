@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Secondhand Marketplace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/Auth.css') }}">
+</head>
+<body class="cyber-auth">
+    <div class="data-mesh"></div>
+    <div class="scanline-overlay"></div>
+    <div class="auth-orb orb-top"></div>
+    <div class="auth-orb orb-bottom"></div>
+    <div class="auth-container">
+        <div class="auth-card">
+            <!-- Logo -->
+            <div class="auth-header">
+                <div class="logo">🛰️</div>
+                <h1 class="glitch-text" data-text="SIGNAL REGISTRATION">SIGNAL REGISTRATION</h1>
+                <p class="tagline">Join the neon campus exchange network</p>
+            </div>
+            <div class="neon-divider"></div>
+
+            <!-- Register form -->
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="registerNickname">Nickname *</label>
+                    <input type="text" id="registerNickname" name="nickname" 
+                           placeholder="Pick your codename" required 
+                           minlength="2" maxlength="20">
+                    <span class="form-hint">2-20 characters · easy to remember</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerEmail">Email *</label>
+                    <input type="email" id="registerEmail" name="email" 
+                           placeholder="id@nyu.edu" required>
+                    <span class="form-hint">Campus email for login and recovery</span>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPassword">Password *</label>
+                    <input type="password" id="registerPassword" name="password" 
+                           placeholder="Create password (≥8 chars)" required 
+                           minlength="8">
+                    <div class="password-strength">
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="strengthFill"></div>
+                        </div>
+                        <span class="strength-text" id="strengthText">Strength</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerPasswordConfirm">Confirm password *</label>
+                    <input type="password" id="registerPasswordConfirm" 
+                           name="passwordConfirm" 
+                           placeholder="Re-enter password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="registerCommunity">Community *</label>
+                    <select id="registerCommunity" name="community_id" required>
+                        <option value="">Choose your community</option>
+                        <option value="1">Tandon Campus</option>
+                        <option value="2">Washington Square</option>
+                        <option value="3">Nearby residents</option>
+                    </select>
+                    <span class="form-hint">Pick your main area for better matches</span>
+                    <div class="community-preview" id="communityPreview" aria-live="polite"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="agreeTerms" required>
+                        <span>I agree to the <a href="#" class="link">Terms</a> and <a href="#" class="link">Privacy</a></span>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <span class="btn-text">Activate pass</span>
+                    <span class="btn-loading" style="display: none;">
+                        <span class="spinner"></span> Writing data...
+                    </span>
+                </button>
+
+                <div class="auth-footer">
+                    Already have access? <a href="{{ url_for('login_page') }}" class="link">Return to login</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+</body>
+</html>
