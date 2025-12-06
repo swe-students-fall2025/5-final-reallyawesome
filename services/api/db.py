@@ -79,9 +79,13 @@ class _InMemoryCollection:
 
 class _InMemoryDB:
     def __init__(self):
+        # Collections used by the app when running with an in-memory mock
         self.items = _InMemoryCollection()
+        self.threads = _InMemoryCollection()
+        self.messages = _InMemoryCollection()
 
     def __getitem__(self, _name):
+        # Database name is ignored for the in-memory mock
         return self
 
 
@@ -100,7 +104,16 @@ class Database:
         self._ensure_indexes()
 
     def _ensure_indexes(self):
+        # Basic index on items name for simple search
         self._db.items.create_index("name")
+        # These can be no-ops for the in-memory implementation
+        if hasattr(self._db, "threads"):
+            self._db.threads.create_index("buyer_id")
+            self._db.threads.create_index("seller_id")
+        if hasattr(self._db, "messages"):
+            self._db.messages.create_index("thread_id")
+
+    # ---------- Listings ----------
 
     def list_items(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Return items sorted by newest first, applying optional filters."""
@@ -114,10 +127,10 @@ class Database:
         if "user_id" in filters and filters["user_id"]:
             query["user_id"] = filters["user_id"]
         if "q" in filters and filters["q"]:
-            # simple text search on title
+            # Simple text search on title
             query["title"] = {"$regex": filters["q"], "$options": "i"}
 
-        items = []
+        items: List[Dict[str, Any]] = []
         for doc in self._db.items.find(query).sort("created_at", -1):
             doc = dict(doc)
             doc["id"] = str(doc.pop("_id", ""))
@@ -139,9 +152,16 @@ class Database:
             doc["name"] = doc["title"]
         return doc
 
-    def create_item(self, title: str, price: float, description: str = "", name: Optional[str] = None, **extra) -> Dict[str, Any]:
+    def create_item(
+        self,
+        title: str,
+        price: float,
+        description: str = "",
+        name: Optional[str] = None,
+        **extra: Any,
+    ) -> Dict[str, Any]:
         now = datetime.utcnow()
-        item = {
+        item: Dict[str, Any] = {
             "title": title,
             "name": name or title,
             "price": price,
@@ -150,6 +170,8 @@ class Database:
         }
         item.update(extra)
         result = self._db.items.insert_one(item)
+        # Remove internal Mongo _id and expose a string id instead
+        item.pop("_id", None)
         item["id"] = str(result.inserted_id)
         return item
 
@@ -181,3 +203,70 @@ class Database:
                     },
                 ]
             )
+
+     # ---------- Threads ----------
+
+    def create_thread(self, buyer_id: str, seller_id: str, listing_id: str) -> Dict[str, Any]:
+        now = datetime.utcnow()
+        doc: Dict[str, Any] = {
+            "buyer_id": buyer_id,
+            "seller_id": seller_id,
+            "listing_id": listing_id,
+            "created_at": now.isoformat(),
+        }
+        result = self._db.threads.insert_one(doc)
+        doc.pop("_id", None)
+        doc["id"] = str(result.inserted_id)
+        return doc
+
+    def get_thread(self, thread_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single thread by its id."""
+        try:
+            doc = self._db.threads.find_one({"_id": ObjectId(thread_id)})
+        except Exception:
+            return None
+        if not doc:
+            return None
+        doc = dict(doc)
+        doc["id"] = str(doc.pop("_id", ""))
+        return doc
+
+    def list_threads_for_user(self, user_id: str) -> List[Dict[str, Any]]:
+        """Return all threads where the user is buyer or seller, newest first."""
+        # Keep the query simple so it works with both MongoDB and the in-memory mock
+        docs = list(self._db.threads.find())
+        filtered = [
+            dict(doc)
+            for doc in docs
+            if doc.get("buyer_id") == user_id or doc.get("seller_id") == user_id
+        ]
+        # Normalize id and sort by created_at descending
+        for doc in filtered:
+            doc["id"] = str(doc.pop("_id", ""))
+        filtered.sort(key=lambda d: d.get("created_at", ""), reverse=True)
+        return filtered
+
+
+    # ---------- Messages ----------
+
+    def create_message(self, thread_id: str, sender_id: str, content: str) -> Dict[str, Any]:
+        now = datetime.utcnow()
+        doc: Dict[str, Any] = {
+            "thread_id": thread_id,
+            "sender_id": sender_id,
+            "content": content,
+            "created_at": now.isoformat(),
+        }
+        result = self._db.messages.insert_one(doc)
+        doc.pop("_id", None)
+        doc["id"] = str(result.inserted_id)
+        return doc
+
+    def list_messages_for_thread(self, thread_id: str) -> List[Dict[str, Any]]:
+        """Return all messages for a thread, oldest first."""
+        messages: List[Dict[str, Any]] = []
+        for doc in self._db.messages.find({"thread_id": thread_id}).sort("created_at", 1):
+            doc = dict(doc)
+            doc["id"] = str(doc.pop("_id", ""))
+            messages.append(doc)
+        return messages
