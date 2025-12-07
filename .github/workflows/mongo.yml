@@ -2,9 +2,9 @@ name: MongoDB CI/CD
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "**" ]  # run on all branches, including feature branches
   pull_request:
-    branches: [ main, master ]
+    branches: [ "**" ]  # validate all PRs; merges to main/master still included
 
 jobs:
   build-and-push:
