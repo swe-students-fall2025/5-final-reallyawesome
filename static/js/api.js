@@ -171,15 +171,6 @@ const API = {
         return this.get(`/messages/${userId}/unread-count`);
     },
     
-    // ===== Report =====
-    async createReport(data) {
-        return this.post('/reports', data);
-    },
-    
-    async getReports() {
-        return this.get('/reports');
-    },
-    
     // =====  =====
     async createReview(data) {
         return this.post('/reviews', data);

@@ -259,6 +259,24 @@ async function showListingDetail(listingId) {
         if (detailContent) {
             detailContent.innerHTML = UI.renderListingDetail(listing);
             refreshDetailFavoriteButton(listingId);
+            const carouselId = `detailCarousel-${String(listing.id).replace(/'/g, "\\'")}`;
+            if (listing.images && listing.images.length > 1) {
+                carouselInit(carouselId);
+            }
+            // Delegate detail actions (contact) once
+            if (!detailContent.dataset.bound) {
+                detailContent.addEventListener('click', (event) => {
+                    const actionEl = event.target.closest('[data-action]');
+                    if (!actionEl) return;
+                    const id = actionEl.dataset.listingId;
+                    const action = actionEl.dataset.action;
+                    if (!id || !action) return;
+                    if (action === 'contact-seller') {
+                        contactSeller(id);
+                    }
+                });
+                detailContent.dataset.bound = '1';
+            }
         }
         
         openModal('detailModal');
@@ -285,38 +303,55 @@ function showListingDetailFromSearch(listingId) {
     showListingDetail(listingId);
 }
 
+// ----- Detail carousel helpers -----
+const detailCarouselState = {};
+
+function setCarouselSlide(carouselId, index) {
+    const container = document.getElementById(carouselId);
+    if (!container) return;
+    const slides = Array.from(container.querySelectorAll('[data-carousel-item]'));
+    if (!slides.length) return;
+    const dots = Array.from(container.querySelectorAll('.carousel-dots .dot'));
+    const safeIndex = ((index % slides.length) + slides.length) % slides.length;
+    slides.forEach((slide, idx) => {
+        slide.style.display = idx === safeIndex ? 'flex' : 'none';
+    });
+    dots.forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === safeIndex);
+    });
+    detailCarouselState[carouselId] = safeIndex;
+}
+
+function carouselInit(carouselId) {
+    detailCarouselState[carouselId] = 0;
+    setCarouselSlide(carouselId, 0);
+}
+
+function carouselNext(carouselId) {
+    const current = detailCarouselState[carouselId] || 0;
+    setCarouselSlide(carouselId, current + 1);
+}
+
+function carouselPrev(carouselId) {
+    const current = detailCarouselState[carouselId] || 0;
+    setCarouselSlide(carouselId, current - 1);
+}
+
+function carouselGo(carouselId, index) {
+    setCarouselSlide(carouselId, index);
+}
+
+// Expose functions for inline handlers
+if (typeof window !== 'undefined') {
+    window.showListingDetail = showListingDetail;
+    window.showListingDetailFromSearch = showListingDetailFromSearch;
+    window.carouselNext = carouselNext;
+    window.carouselPrev = carouselPrev;
+    window.carouselGo = carouselGo;
+}
+
 // ⚠️ ：contactSeller()  contact-seller.js 
 // ！
-
-/**
- * Report
- */
-async function reportListing(listingId) {
-    const reason = prompt('Please enter a report reason：');
-    if (!reason) return;
-    
-    try {
-        const currentUser = getCurrentUser();
-        if (!currentUser || !currentUser.id) {
-            UI.showError('Please log in before reporting');
-            return;
-        }
-
-        await API.createReport({
-            reporter_id: currentUser.id,
-            target_type: 'listing',
-            target_id: listingId,
-            reason: reason
-        });
-        
-        UI.showSuccess('Report submitted! We will review soon.');
-        closeModal('detailModal');
-    } catch (error) {
-        console.error('Report:', error);
-        UI.showSuccess('Report submitted! We will review soon.');
-        closeModal('detailModal');
-    }
-}
 
 /**
  * 
@@ -361,10 +396,14 @@ function updateProfileAvatarDisplay(user) {
     if (img) {
         if (avatarUrl) {
             img.src = avatarUrl;
+            img.style.display = 'block';
             wrapper.classList.add('has-image');
+            if (fallback) fallback.style.display = 'none';
         } else {
             img.removeAttribute('src');
+            img.style.display = 'none';
             wrapper.classList.remove('has-image');
+            if (fallback) fallback.style.display = 'flex';
         }
     }
 
@@ -428,6 +467,13 @@ async function handleAvatarFileChange(event) {
             }
             return;
         }
+
+        // Show local preview immediately
+        const previewUrl = URL.createObjectURL(file);
+        updateProfileAvatarDisplay({
+            ...(currentUser || {}),
+            avatar: previewUrl
+        });
 
         const response = await API.uploadAvatar(currentUser.id, file);
         if (response?.user) {
@@ -674,10 +720,13 @@ async function openMyListingsModal() {
         }
 
         const cards = listings
-            .map((listing, index) => UI.renderProfileListingCard(listing, index, {
-                onClick: `closeModal('myListingsModal'); showListingDetail(${listing.id})`,
-                showStatus: true
-            }))
+            .map((listing, index) => {
+                const listingIdSafe = String(listing.id).replace(/'/g, "\\'");
+                return UI.renderProfileListingCard(listing, index, {
+                    onClick: `closeModal('myListingsModal'); showListingDetail('${listingIdSafe}')`,
+                    showStatus: true
+                });
+            })
             .join('');
         container.innerHTML = cards;
     } catch (error) {
@@ -752,11 +801,14 @@ function renderFavoritesModalContent(favorites) {
     }
 
     const cards = list
-        .map((listing, index) => UI.renderProfileListingCard(listing, index, {
-            onClick: `closeModal('myFavoritesModal'); showListingDetail(${listing.id})`,
-            showFavoriteButton: true,
-            favorited: true
-        }))
+        .map((listing, index) => {
+            const listingIdSafe = String(listing.id).replace(/'/g, "\\'");
+            return UI.renderProfileListingCard(listing, index, {
+                onClick: `closeModal('myFavoritesModal'); showListingDetail('${listingIdSafe}')`,
+                showFavoriteButton: true,
+                favorited: true
+            });
+        })
         .join('');
     container.innerHTML = cards;
 }

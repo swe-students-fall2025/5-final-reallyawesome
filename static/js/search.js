@@ -10,8 +10,7 @@ let searchTimeout = null;
  */
 async function loadPopularSearches() {
     const tags = [
-        'CS-UY 1134', 'MA-UY 1024', '', '', 'Python',
-        '', 'iPad', '', '', '', 'Rental'
+        'CS-UY 1134', 'MA-UY 1024', 'Python', 'iPad', 'Rental'
     ];
     
     const container = document.getElementById('popularTags');
@@ -27,6 +26,7 @@ function searchByTag(tag) {
     const searchInput = document.getElementById('searchPageInput');
     if (searchInput) {
         searchInput.value = tag;
+        toggleSearchClearButton();
     }
     
     addToSearchHistory(tag);
@@ -37,6 +37,7 @@ function searchByTag(tag) {
  * Search page
  */
 function handleSearchPageInput(event) {
+    toggleSearchClearButton();
     clearTimeout(searchTimeout);
     const query = event.target.value.trim();
     
@@ -116,4 +117,26 @@ function removeFromHistory(term) {
 function clearSearchHistory() {
     clearSearchHistoryState();
     renderSearchHistory();
+}
+
+/**
+ * Toggle clear button visibility
+ */
+function toggleSearchClearButton() {
+    const input = document.getElementById('searchPageInput');
+    const btn = document.getElementById('searchClearBtn');
+    if (!input || !btn) return;
+    btn.style.display = input.value && input.value.length > 0 ? 'flex' : 'none';
+}
+
+/**
+ * Clear search input and results state
+ */
+function clearSearchInput() {
+    const input = document.getElementById('searchPageInput');
+    if (!input) return;
+    input.value = '';
+    toggleSearchClearButton();
+    handleSearchPageInput({ target: input });
+    input.focus();
 }

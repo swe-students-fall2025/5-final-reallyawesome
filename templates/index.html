@@ -28,10 +28,6 @@
                 <a href="{{ url_for('register_page') }}" class="auth-link highlight">Sign up</a>
             </div>
             <div class="nav-icons">
-                <button onclick="showNotifications()">
-                    🔔
-                    <span class="badge" id="notificationBadge" style="display: none;">0</span>
-                </button>
                 <button onclick="showMessages()">
                     💬
                     <span class="badge" id="messageBadge" style="display: none;">0</span>
@@ -76,10 +72,12 @@
     <div class="page" id="searchPage">
         <div class="search-page">
             <!-- Search box -->
-            <div class="neon-panel search-card">
+            <div class="neon-panel search-card search-field">
                 <input type="text" class="search-input" id="searchPageInput" 
                        placeholder="Enter keyword / item code..." 
-                       onkeyup="handleSearchPageInput(event)">
+                       onkeyup="handleSearchPageInput(event)"
+                       oninput="toggleSearchClearButton()">
+                <button type="button" class="search-clear-btn" id="searchClearBtn" aria-label="Clear search" onclick="clearSearchInput()" style="display:none;">×</button>
             </div>
             
             <!-- Search results -->
@@ -206,9 +204,6 @@
                     <input type="file" id="avatarUploadInput" class="avatar-input" accept="image/*" onchange="handleAvatarFileChange(event)">
                 </div>
                 <div class="profile-name" id="profileName">Demo User</div>
-                <div class="profile-status">
-                    <span class="user-badge">Verification: ALPHA</span>
-                </div>
             </div>
             <div class="neon-divider"></div>
             
@@ -223,25 +218,11 @@
                 <div class="menu-item" onclick="openFavoritesModal()">
                     <div class="menu-item-left">
                         <span class="menu-icon">❤️</span>
-                        <span>My favorites</span>
+                        <span>My Wish</span>
                     </div>
                     <span>›</span>
                 </div>
                 <!-- Transactions removed -->
-                <div class="menu-item" onclick="alert('Reviews are in development...')">
-                    <div class="menu-item-left">
-                        <span class="menu-icon">⭐</span>
-                        <span>My reviews</span>
-                    </div>
-                    <span>›</span>
-                </div>
-                <div class="menu-item" onclick="alert('Settings are in development...')">
-                    <div class="menu-item-left">
-                        <span class="menu-icon">⚙️</span>
-                        <span>Settings</span>
-                    </div>
-                    <span>›</span>
-                </div>
             </div>
         </div>
     </div>
@@ -351,7 +332,7 @@
     <div class="modal" id="myFavoritesModal">
         <div class="modal-content wide">
             <div class="modal-header">
-                <h2 class="modal-title">My favorites</h2>
+                <h2 class="modal-title">My Wish</h2>
                 <button class="close-btn" onclick="closeModal('myFavoritesModal')">&times;</button>
             </div>
             <div id="myFavoritesContainer" class="profile-listings">
@@ -375,8 +356,8 @@
     </div>
 
     <!-- Message dialog -->
-    <div class="modal" id="messageDialog">
-        <div class="modal-content flex-column">
+    <div class="modal chat-modal" id="messageDialog">
+        <div class="modal-content flex-column chat-dialog">
             <div class="modal-header">
                 <h2 class="modal-title" id="messageDialogTitle">Chat with seller</h2>
                 <button class="close-btn" onclick="closeMessageDialog()">&times;</button>
@@ -388,7 +369,7 @@
             </div>
             
             <!-- Messages -->
-            <div id="messagesContainer" class="messages-scroll">
+            <div id="messagesContainer" class="messages-scroll chat-surface">
                 <div class="loading">Loading messages...</div>
             </div>
             
@@ -396,7 +377,7 @@
             <div class="message-input-row">
                 <input type="text" id="messageInput" class="form-input" 
                        placeholder="Type a message... (Enter to send)">
-                <button id="messageSendBtn" class="submit-btn message-send-btn" onclick="sendMessage()">
+                <button id="messageSendBtn" class="submit-btn message-send-btn" onclick="sendDialogMessage()">
                     Send
                 </button>
             </div>
