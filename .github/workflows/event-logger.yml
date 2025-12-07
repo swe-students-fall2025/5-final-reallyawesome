@@ -8,8 +8,6 @@ on:
 jobs:
   log:
     runs-on: ubuntu-latest
-    if: secrets.COMMIT_LOG_API != ''
-    continue-on-error: true
     env:
       PIPENV_PIPFILE: .github/workflows/Pipfile # so this script doesn't use the Pipfile in the root directory
       COMMIT_LOG_API: ${{ secrets.COMMIT_LOG_API }}
