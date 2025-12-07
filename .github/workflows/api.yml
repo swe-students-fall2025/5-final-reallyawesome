@@ -3,8 +3,13 @@ name: API CI/CD
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'services/api/**'
+      - '.github/workflows/api.yml'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'services/api/**'
 
 jobs:
   test:
