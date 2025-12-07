@@ -170,7 +170,6 @@ class Database:
         }
         item.update(extra)
         result = self._db.items.insert_one(item)
-        # Remove internal Mongo _id and expose a string id instead
         item.pop("_id", None)
         item["id"] = str(result.inserted_id)
         return item

@@ -220,13 +220,13 @@ if (registerForm) {
     updateCommunityPreview();
 }
 
-// =====  =====
+/* // =====  =====
 const wechatLoginBtn = document.getElementById('wechatLoginBtn');
 const forgotPasswordLink = document.getElementById('forgotPasswordLink');
 
 if (wechatLoginBtn) {
     wechatLoginBtn.addEventListener('click', () => {
-        showToast('Login，', 'info');
+        showToast('Login,', 'info');
     });
 }
 
@@ -235,4 +235,4 @@ if (forgotPasswordLink) {
         event.preventDefault();
         showToast('', 'info');
     });
-}
+} */
