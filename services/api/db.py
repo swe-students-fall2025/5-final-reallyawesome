@@ -150,6 +150,7 @@ class Database:
         }
         item.update(extra)
         result = self._db.items.insert_one(item)
+        item.pop("_id", None)
         item["id"] = str(result.inserted_id)
         return item
 
