@@ -573,7 +573,9 @@ function switchTab(tab) {
         document.getElementById('searchHistorySection').style.display = 'block';
     } else if (tab === 'messages') {
         // 🔧 ：
-        loadMessagesPage();
+       if (typeof initMessagesPage === 'function') {
+        initMessagesPage();   // ← 这一步加载线程列表
+    }
     }
 }
 
