@@ -3,13 +3,8 @@ name: MongoDB CI/CD
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - 'services/mongo/**'
-      - '.github/workflows/mongo.yml'
   pull_request:
     branches: [ main, master ]
-    paths:
-      - 'services/mongo/**'
 
 jobs:
   build-and-push:
