@@ -47,7 +47,7 @@ const UI = {
     renderListings(listings) {
         const container = document.getElementById('listingsContainer');
         if (!container) return;
-        
+
         if (!listings || listings.length === 0) {
             container.innerHTML = `
                 <div style="grid-column: 1/-1; text-align:center; padding:40px; color:#6b7280">
@@ -66,7 +66,9 @@ const UI = {
      */
     renderListingCard(listing, index) {
         const gradient = this.gradients[index % this.gradients.length];
-        const verifyBadge = listing.user?.verify_status === 'email_verified' ? 'Verified user' : 'Regular user';
+        const listingId = String(listing.id);
+        const listingIdLiteral = JSON.stringify(listingId);
+        const listingIdSafe = listingId.replace(/'/g, "\\'");
         const favorited = typeof isListingFavorited === 'function' && isListingFavorited(listing.id);
         const favoriteIcon = favorited ? '❤️' : '🤍';
         const favoriteTitle = favorited ? 'Unfavorite' : 'Favorite';
@@ -91,10 +93,10 @@ const UI = {
             : placeholder;
         
         return `
-            <div class="listing-card" onclick="showListingDetail(${listing.id})" style="position: relative;">
+            <div class="listing-card" onclick="showListingDetail('${listingIdSafe}')" data-listing-id="${listingId}" style="position: relative;">
                 <button 
                     class="favorite-inline-btn" 
-                    onclick="event.stopPropagation(); toggleFavorite(${listing.id});" 
+                    onclick="event.stopPropagation(); toggleFavorite('${listingIdSafe}');" 
                     title="${favoriteTitle}"
                     style="
                         position: absolute;
@@ -122,7 +124,6 @@ const UI = {
                     <div class="listing-title">${listing.title}</div>
                     <div class="listing-price-row">
                         <div class="listing-price">$${listing.price}</div>
-                        <span class="listing-verify">${verifyBadge}</span>
                     </div>
                     <div class="listing-meta">
                         <span class="seller-name">👤 ${safeSellerName}</span>
@@ -145,6 +146,8 @@ const UI = {
             .replace(/'/g, '&#39;');
 
         const opts = options || {};
+        const listingId = String(listing.id);
+        const listingIdSafe = listingId.replace(/'/g, "\\'");
         const gradient = this.gradients[index % this.gradients.length];
         const plainTitle = (listing.title || '').toString();
         const hasImages = Array.isArray(listing.images) && listing.images.length > 0;
@@ -174,16 +177,6 @@ const UI = {
             ''
         );
 
-        const verifyStatus = listing.user?.verify_status || listing.verify_status;
-        let verifyLabel = null;
-        if (verifyStatus === 'email_verified') {
-            verifyLabel = 'Email verified';
-        } else if (verifyStatus === 'phone_verified') {
-            verifyLabel = 'Phone verified';
-        } else if (verifyStatus === 'pending') {
-            verifyLabel = 'Pending review';
-        }
-
         const statusMap = {
             active: 'Active',
             sold: 'Sold',
@@ -204,17 +197,16 @@ const UI = {
                     ${placeholderText}
                </div>`;
 
-        const onClick = opts.onClick ? `onclick="${opts.onClick}"` : `onclick="showListingDetail(${listing.id})"`;
+        const onClick = opts.onClick ? `onclick="${opts.onClick}"` : `onclick="showListingDetail('${listingIdSafe}')"`;
         const favoriteBtn = opts.showFavoriteButton ? `
             <button class="profile-favorite-btn ${opts.favorited ? 'favorited' : ''}"
-                    onclick="event.stopPropagation(); toggleFavorite(${listing.id});"
+                    onclick="event.stopPropagation(); toggleFavorite('${listingIdSafe}');"
                     title="${opts.favorited ? 'Unfavorite' : 'Favorite'}">
                 ${opts.favorited ? '❤️' : '🤍'}
             </button>
         ` : '';
 
         const sellerMarkup = sellerName ? `<span class="profile-listing-seller">👤 ${sellerName}</span>` : '';
-        const verifyMarkup = verifyLabel ? `<span class="profile-verify">${verifyLabel}</span>` : '';
         const descMarkup = description ? `<div class="profile-listing-desc">${description}</div>` : '';
         const statusMarkup = statusLabel ? `<span class="profile-listing-status status-${statusKey}">${statusLabel}</span>` : '';
 
@@ -234,7 +226,6 @@ const UI = {
                         <span class="profile-listing-category">${categoryInfo.icon} ${categoryInfo.label}</span>
                         <span class="profile-listing-location">📍 ${meetupPoint}</span>
                         ${sellerMarkup}
-                        ${verifyMarkup}
                     </div>
                     ${descMarkup}
                 </div>
@@ -246,7 +237,9 @@ const UI = {
      * Render listing detail
      */
     renderListingDetail(listing) {
-        const verifyBadge = listing.user?.verify_status === 'email_verified' ? 'Verified user' : 'Regular user';
+        const listingId = String(listing.id);
+        const listingIdSafe = listingId.replace(/'/g, "\\'");
+        const listingIdAttr = listingIdSafe;
         const favorited = typeof isListingFavorited === 'function' && isListingFavorited(listing.id);
         const favoriteIcon = favorited ? '❤️' : '🤍';
         const favoriteTitle = favorited ? 'Unfavorite' : 'Favorite';
@@ -266,21 +259,38 @@ const UI = {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
         const meetupPoint = listing.meetup_point || 'Meetup TBD';
-        const detailImage = hasImages
-            ? `<img src="${primaryImage}" alt="${safeTitle}" class="listing-photo">`
+        const images = hasImages ? listing.images.filter(Boolean) : (primaryImage ? [primaryImage] : []);
+        const carouselId = `detailCarousel-${listingIdSafe}`;
+        const detailImage = images.length
+            ? `
+                <div class="detail-carousel" id="${carouselId}">
+                    ${images.map((img, idx) => `
+                        <div class="detail-slide" data-carousel-item style="display:${idx === 0 ? 'flex' : 'none'};">
+                            <img src="${img}" alt="${safeTitle}" class="listing-photo">
+                        </div>
+                    `).join('')}
+                    ${images.length > 1 ? `
+                        <button class="carousel-btn prev" onclick="carouselPrev('${carouselId}')">‹</button>
+                        <button class="carousel-btn next" onclick="carouselNext('${carouselId}')">›</button>
+                        <div class="carousel-dots">
+                            ${images.map((_, idx) => `<span class="dot" data-dot-index="${idx}" onclick="carouselGo('${carouselId}', ${idx})"></span>`).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+              `
             : `<div class="listing-placeholder" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                     ${listing.title}
                </div>`;
         
         return `
             <div style="margin-bottom: 15px; position: relative;">
-                <div class="listing-image ${hasImages ? 'has-photo' : ''}" style="height: 200px; border-radius: 12px;">
+                <div class="listing-image ${hasImages ? 'has-photo' : ''} detail-portrait">
                     ${detailImage}
                 </div>
                 <button 
                     id="favoriteToggleBtn"
                     class="favorite-detail-btn ${favorited ? 'favorited' : ''}"
-                    onclick="toggleFavorite(${listing.id})"
+                    onclick="toggleFavorite('${listingIdSafe}')"
                     title="${favoriteTitle}"
                     style="
                         position: absolute;
@@ -317,14 +327,10 @@ const UI = {
             </div>
             <div style="margin-bottom: 20px;">
                 <strong>Seller:</strong> 
-                <span class="user-badge">${verifyBadge}</span>
                 <span class="seller-name detail">👤 ${safeSellerName}</span>
             </div>
-            <button class="submit-btn" onclick="contactSeller(${listing.id})">
+            <button class="submit-btn" data-action="contact-seller" data-listing-id="${listingIdAttr}">
                 💬 Contact seller
-            </button>
-            <button class="submit-btn secondary" onclick="reportListing(${listing.id})">
-                🚩 Report
             </button>
         `;
     },
@@ -344,8 +350,8 @@ const UI = {
         }
         
         const items = results.map((listing, i) => {
+            const listingIdSafe = String(listing.id).replace(/'/g, "\\'");
             const gradient = this.gradients[i % this.gradients.length];
-            const verifyBadge = listing.user?.verify_status === 'email_verified' ? 'Verified user' : 'Regular user';
             const hasImages = Array.isArray(listing.images) && listing.images.length > 0;
             const primaryImage = hasImages ? listing.images[0] : null;
             const safeTitle = (listing.title || '').replace(/"/g, '&quot;');
@@ -364,13 +370,12 @@ const UI = {
             const meetupPoint = listing.meetup_point || 'Meetup TBD';
             
             return `
-                <div class="search-result-item" onclick="showListingDetailFromSearch(${listing.id})">
+                <div class="search-result-item" onclick="showListingDetailFromSearch('${listingIdSafe}')">
                     ${thumbnail}
                     <div class="search-result-body">
                         <div class="search-result-title">${listing.title}</div>
                         <div class="search-result-price">$${listing.price}</div>
                         <div class="search-result-meta">
-                            <span class="user-badge">${verifyBadge}</span>
                             <span class="search-result-meta-item">👤 ${safeSellerName}</span>
                             <span class="search-result-meta-item">📍 ${meetupPoint}</span>
                         </div>

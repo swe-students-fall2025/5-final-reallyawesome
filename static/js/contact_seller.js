@@ -5,9 +5,9 @@
  * Handles the flow from clicking contact seller to sending message
  */
 
-// ===== State management =====
-let currentThreadId = null;
-let currentThread = null; // { threadId, listing, buyerId, sellerId, buyerNickname, sellerNickname }
+// ===== State management (dialog-scoped to avoid clashing with messages page) =====
+let dialogThreadId = null;
+let dialogThread = null; // { threadId, listing, buyerId, sellerId, buyerNickname, sellerNickname }
 let messageRefreshInterval = null;
 
 /**
@@ -44,32 +44,56 @@ async function contactSeller(listingId) {
         }
         
         // 3. Create or get thread
-        console.log('Creating thread...', {
-            buyer_id: currentUser.id,
-            seller_id: listing.user.id,
-            listing_id: listingId
-        });
+        // Try to reuse existing conversation for this buyer/seller/listing trio
+        const existingThreadId = await findExistingThreadId(currentUser.id, listing.user.id, listingId);
+        let threadId = existingThreadId;
+
+        if (!threadId) {
+            console.log('No existing thread. Creating...', {
+                buyer_id: currentUser.id,
+                seller_id: listing.user.id,
+                listing_id: listingId
+            });
+            const threadResponse = await createThread(
+                currentUser.id,
+                listing.user.id,
+                listingId
+            );
+            threadId = threadResponse.id || threadResponse;
+        }
         
-        const threadResponse = await createThread(
-            currentUser.id,
-            listing.user.id,
-            listingId
-        );
+        console.log('Using thread ID:', threadId);
         
-        const threadId = threadResponse.id || threadResponse;
-        console.log('Thread created, ID:', threadId);
-        
-        // 4. Open message dialog
+        // 4. Open message dialog (keep detail modal open in background)
         await openMessageDialog(threadId, listing, listing.user);
-        
-        // 5. 
-        closeModal('detailModal');
         
         console.log('Contact seller succeeded');
         
     } catch (error) {
         console.error('Contact seller failed:', error);
         showError('Contact seller failed: ' + error.message);
+    }
+}
+
+/**
+ * Try to find an existing thread between buyer/seller for the listing
+ */
+async function findExistingThreadId(buyerId, sellerId, listingId) {
+    try {
+        const resp = await fetch(`/api/threads/${buyerId}`);
+        if (!resp.ok) return null;
+        const threads = await resp.json();
+        const match = (threads || []).find(t => {
+            const sameListing = String(t.listing_id) === String(listingId);
+            const samePair =
+                (String(t.buyer_id) === String(buyerId) && String(t.seller_id) === String(sellerId)) ||
+                (String(t.buyer_id) === String(sellerId) && String(t.seller_id) === String(buyerId));
+            return sameListing && samePair;
+        });
+        return match ? match.id || match.thread_id : null;
+    } catch (err) {
+        console.warn('Failed to check existing thread', err);
+        return null;
     }
 }
 
@@ -110,8 +134,8 @@ async function createThread(buyerId, sellerId, listingId) {
 async function openMessageDialog(threadId, listing, seller) {
     try {
         const currentUser = getCurrentUser();
-        currentThreadId = threadId;
-        currentThread = {
+        dialogThreadId = threadId;
+        dialogThread = {
             threadId,
             listing: listing || null,
             buyerId: currentUser?.id || null,
@@ -125,7 +149,7 @@ async function openMessageDialog(threadId, listing, seller) {
             try {
                 const freshListing = await getListing(listing.id);
                 if (freshListing) {
-                    currentThread.listing = freshListing;
+                    dialogThread.listing = freshListing;
                     listing = freshListing;
                 }
             } catch (fetchError) {
@@ -141,10 +165,10 @@ async function openMessageDialog(threadId, listing, seller) {
         }
         
         // 2. Update listing info
-        renderProductInfo(currentThread.listing || listing);
+        renderProductInfo(dialogThread.listing || listing);
         
         // 3. Load messages
-        await loadMessages(threadId);
+        await loadDialogMessages(threadId);
         
         // 4. Open dialog
         openModal('messageDialog');
@@ -207,8 +231,8 @@ function getColorByCategory(category) {
  * Close message dialog
  */
 function closeMessageDialog() {
-    currentThreadId = null;
-    currentThread = null;
+    dialogThreadId = null;
+    dialogThread = null;
     if (messageRefreshInterval) {
         clearInterval(messageRefreshInterval);
         messageRefreshInterval = null;
@@ -221,7 +245,7 @@ function closeMessageDialog() {
 /**
  * Load messages
  */
-async function loadMessages(threadId) {
+async function loadDialogMessages(threadId) {
     try {
         const messagesContainer = document.getElementById('messagesContainer');
         if (!messagesContainer) {
@@ -265,7 +289,7 @@ async function loadMessages(threadId) {
 function renderMessage(message) {
     const currentUser = getCurrentUser();
     const currentUserId = currentUser && currentUser.id ? currentUser.id : null;
-    const isOwn = currentUserId ? message.from_user_id === currentUserId : false;
+    const isOwn = currentUserId ? message.sender_id === currentUserId : false;
     
     return `
         <div style="display: flex; margin-bottom: 12px; justify-content: ${isOwn ? 'flex-end' : 'flex-start'};">
@@ -288,7 +312,7 @@ function renderMessage(message) {
 /**
  * Send message
  */
-async function sendMessage() {
+async function sendDialogMessage() {
     try {
         const input = document.getElementById('messageInput');
         const content = input.value.trim();
@@ -304,7 +328,7 @@ async function sendMessage() {
             return;
         }
         
-        if (!currentThreadId) {
+        if (!dialogThreadId) {
             showError('No thread ID');
             return;
         }
@@ -329,8 +353,8 @@ async function sendMessage() {
         
         // 3. Send message
         console.log('Sending message...', {
-            thread_id: currentThreadId,
-            from_user_id: currentUser.id,
+            thread_id: dialogThreadId,
+            sender_id: currentUser.id,
             to_user_id: receiverId,
             content: content
         });
@@ -341,9 +365,8 @@ async function sendMessage() {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                thread_id: currentThreadId,
-                from_user_id: currentUser.id,
-                to_user_id: receiverId,
+                thread_id: dialogThreadId,
+                sender_id: currentUser.id,
                 content: content
             })
         });
@@ -360,11 +383,11 @@ async function sendMessage() {
         input.value = '';
         
         // 5. Reload messages
-        await loadMessages(currentThreadId);
+        await loadDialogMessages(dialogThreadId);
         
         // 6. 
         sendBtn.disabled = false;
-        sendBtn.textContent = '';
+        sendBtn.textContent = 'Send';
         
     } catch (error) {
         console.error('Failed to send message:', error);
@@ -383,15 +406,15 @@ async function sendMessage() {
  * Get chat object ID
  */
 function getChatPartnerId() {
-    if (!currentThread) return null;
+    if (!dialogThread) return null;
     const currentUser = getCurrentUser();
     if (!currentUser || !currentUser.id) return null;
     
-    if (currentUser.id === currentThread.buyerId) {
-        return currentThread.sellerId;
+    if (currentUser.id === dialogThread.buyerId) {
+        return dialogThread.sellerId;
     }
-    if (currentUser.id === currentThread.sellerId) {
-        return currentThread.buyerId;
+    if (currentUser.id === dialogThread.sellerId) {
+        return dialogThread.buyerId;
     }
     return null;
 }
@@ -400,10 +423,10 @@ function getChatPartnerId() {
  * Get chat object name
  */
 function getChatPartnerNickname() {
-    if (!currentThread) return null;
-    if (currentThread.sellerNickname) return currentThread.sellerNickname;
-    if (currentThread.listing && currentThread.listing.user && currentThread.listing.user.nickname) {
-        return currentThread.listing.user.nickname;
+    if (!dialogThread) return null;
+    if (dialogThread.sellerNickname) return dialogThread.sellerNickname;
+    if (dialogThread.listing && dialogThread.listing.user && dialogThread.listing.user.nickname) {
+        return dialogThread.listing.user.nickname;
     }
     return 'Seller';
 }
@@ -444,7 +467,20 @@ async function loadMessagesPage() {
             return;
         }
         
-        threadList.innerHTML = threads.map(thread => renderThreadItem(thread)).join('');
+        // Enrich threads with listing info so the UI has data to show
+        const enrichedThreads = await Promise.all(
+            threads.map(async (thread) => {
+                let listing = null;
+                try {
+                    listing = await getListing(thread.listing_id);
+                } catch (_err) {
+                    listing = null;
+                }
+                return { ...thread, listing };
+            })
+        );
+
+        threadList.innerHTML = enrichedThreads.map(thread => renderThreadItem(thread)).join('');
         
     } catch (error) {
         console.error('Load messages:', error);
@@ -464,15 +500,17 @@ function renderThreadItem(thread) {
     const otherNickname = isBuyer
         ? (thread.seller_nickname || 'Seller')
         : (thread.buyer_nickname || '');
+    const listing = thread.listing || {};
+    const time = formatTime(thread.created_at);
     
     return `
         <div class="thread-item" onclick="openThreadFromList(${thread.id})">
             <div class="thread-header">
                 <div class="thread-title">${otherNickname}</div>
-                <div class="thread-time">${formatTime(thread.last_message_at)}</div>
+                <div class="thread-time">${time}</div>
             </div>
-            <div class="thread-preview">${thread.listing_title}</div>
-            <div class="thread-price">$${thread.listing_price}</div>
+            <div class="thread-preview">${listing.title || 'Listing'}</div>
+            <div class="thread-price">${listing.price ? `$${listing.price}` : ''}</div>
         </div>
     `;
 }
@@ -488,31 +526,42 @@ async function openThreadFromList(threadId) {
             return;
         }
         
-        currentThreadId = threadId;
+        dialogThreadId = threadId;
         
         // 
-        const response = await fetch(`/api/threads/${threadId}`);
-        if (!response.ok) {
-            throw new Error('');
+        // We don't have a single-thread GET endpoint, so reuse the threads list to find it
+        const allThreadsResp = await fetch(`/api/threads/${currentUser.id}`);
+        if (!allThreadsResp.ok) {
+            throw new Error('Failed to fetch threads');
+        }
+        const threads = await allThreadsResp.json();
+        const thread = threads.find(t => String(t.id) === String(threadId));
+        if (!thread) {
+            throw new Error('Thread not found');
         }
         
-        const thread = await response.json();
+        // Fetch listing info for richer display
+        let listingData = null;
+        try {
+            listingData = await getListing(thread.listing_id);
+        } catch (_err) {
+            listingData = null;
+        }
         
-        currentThread = {
+        dialogThread = {
             threadId,
-            listing: {
+            listing: listingData || {
                 id: thread.listing_id,
-                title: thread.listing_title,
-                price: thread.listing_price,
-                meetup_point: thread.listing_meetup_point || thread.meetup_point || '',
-                category: thread.listing_category || 'other'
+                title: listingData?.title || 'Listing',
+                price: listingData?.price || '',
+                meetup_point: listingData?.meetup_point || 'Meetup location not set',
+                category: listingData?.category || 'other'
             },
             buyerId: thread.buyer_id,
             sellerId: thread.seller_id,
             buyerNickname: thread.buyer_nickname,
             sellerNickname: thread.seller_nickname
         };
-        currentThreadId = threadId;
         
         // 
         const dialogTitle = document.getElementById('messageDialogTitle');
@@ -524,22 +573,23 @@ async function openThreadFromList(threadId) {
         // Update listing info
         const productInfo = document.getElementById('messageProductInfo');
         if (productInfo) {
+            const listing = dialogThread.listing || {};
             productInfo.innerHTML = `
                 <div class="message-product-card">
                     <div class="message-product-thumb">
-                        ${(thread.listing_title || '').substring(0, 10)}
+                        ${(listing.title || '').substring(0, 10)}
                     </div>
                     <div class="message-product-body">
-                        <div class="message-product-title">${thread.listing_title}</div>
-                        <div class="message-product-price">$${thread.listing_price}</div>
-                        <div class="message-product-meta">📍 ${thread.listing_meetup_point || 'Meetup location not set'}</div>
+                        <div class="message-product-title">${listing.title || 'Listing'}</div>
+                        <div class="message-product-price">${listing.price ? `$${listing.price}` : ''}</div>
+                        <div class="message-product-meta">📍 ${listing.meetup_point || 'Meetup location not set'}</div>
                     </div>
                 </div>
             `;
         }
 
         // 
-        await loadMessages(threadId);
+        await loadDialogMessages(threadId);
         
         // Open dialog
         openModal('messageDialog');
@@ -639,7 +689,7 @@ function initContactSeller() {
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                sendMessage();
+                sendDialogMessage();
             }
         });
     }
@@ -650,4 +700,10 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initContactSeller);
 } else {
     initContactSeller();
+}
+
+// Expose entry points for inline handlers
+if (typeof window !== 'undefined') {
+    window.contactSeller = contactSeller;
+    window.closeMessageDialog = closeMessageDialog;
 }

@@ -1,10 +1,17 @@
 import os
+import uuid
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
 
-from .db import Database
+try:
+    # When imported as a package (tests, normal usage)
+    from .db import Database
+except ImportError:  # pragma: no cover
+    # When executed as a standalone script (e.g., Docker CMD)
+    from db import Database  # type: ignore
 
 
 def _find_root() -> Path:
@@ -23,6 +30,8 @@ def _find_root() -> Path:
 ROOT_DIR = _find_root()
 STATIC_DIR = ROOT_DIR / "static"
 TEMPLATES_DIR = ROOT_DIR / "templates"
+UPLOAD_DIR = STATIC_DIR / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
 MONGO_DB = os.getenv("MONGO_DB", "marketplace")
@@ -86,6 +95,7 @@ def create_app(testing: bool = False):
             return jsonify(items), 200
 
         # POST create listing (JSON or multipart)
+        images = []
         if request.form:
             form = request.form
             title = form.get("title", "").strip()
@@ -96,6 +106,16 @@ def create_app(testing: bool = False):
             user_id = form.get("user_id") or "1"
             course_code = form.get("course_code")
             community_id = form.get("community_id")
+            # Handle uploaded images if present
+            if request.files:
+                for f in request.files.getlist("images"):
+                    if not f or f.filename == "":
+                        continue
+                    filename = secure_filename(f.filename)
+                    unique_name = f"{uuid.uuid4().hex}_{filename}"
+                    dest = UPLOAD_DIR / unique_name
+                    f.save(dest)
+                    images.append(f"/static/uploads/{unique_name}")
         else:
             payload = request.get_json(force=True, silent=True) or {}
             title = (payload.get("title") or payload.get("name") or "").strip()
@@ -125,6 +145,7 @@ def create_app(testing: bool = False):
             user=user_info,
             course_code=course_code,
             community_id=community_id,
+            images=images if images else None,
         )
         return jsonify(listing), 201
 
@@ -196,8 +217,16 @@ def create_app(testing: bool = False):
         user = users.get(user_id)
         if not user:
             return jsonify({"error": "Not found"}), 404
-        # For demo, just echo a placeholder URL
-        user["avatar"] = f"https://placehold.co/120x120?text={user.get('nickname','User')}"
+        upload = request.files.get("avatar")
+        if upload and upload.filename:
+            filename = secure_filename(upload.filename)
+            unique_name = f"{uuid.uuid4().hex}_{filename}"
+            dest = UPLOAD_DIR / unique_name
+            upload.save(dest)
+            user["avatar"] = f"/static/uploads/{unique_name}"
+        else:
+            # Fallback placeholder
+            user["avatar"] = f"https://placehold.co/120x120?text={user.get('nickname','User')}"
         return jsonify({"user": {k: v for k, v in user.items() if k != "password"}}), 200
 
     # ---- Favorites (in-memory) ----
