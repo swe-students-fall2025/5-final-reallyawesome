@@ -4,6 +4,7 @@ An exercise to put to practice software development teamwork, database integrati
 
 ## Requirements
 
+
 This is an open-ended exercise for you to show your mastery of software engineering, with some specific requirements:
 
 - Your software must be composed of at least 2 different subsystems.

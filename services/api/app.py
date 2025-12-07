@@ -40,8 +40,6 @@ def create_app(testing: bool = False):
     users = {}
     auth_tokens = {}
     favorites = {}
-    threads = []
-    messages = []
     reports = []
     communities = [
         {"id": 1, "name": "NYU Tandon", "type": "university"},
@@ -51,6 +49,12 @@ def create_app(testing: bool = False):
 
     def _next_id(collection):
         return str(len(collection) + 1)
+
+    def _normalize_optional(value):
+        """Normalize optional values; treat None-like strings as missing."""
+        if value in (None, "", "None", "null", "undefined"):
+            return None
+        return value
 
     @app.route("/api/health")
     @app.route("/health")
@@ -200,10 +204,12 @@ def create_app(testing: bool = False):
     @app.route("/api/favorites", methods=["POST"])
     def add_favorite():
         payload = request.get_json(force=True, silent=True) or {}
-        user_id = str(payload.get("user_id"))
-        listing_id = str(payload.get("listing_id"))
-        if not user_id or not listing_id:
+        user_id = payload.get("user_id")
+        listing_id = payload.get("listing_id")
+        if not user_id or not listing_id or user_id == "None" or listing_id == "None":
             return jsonify({"error": "user_id and listing_id required"}), 400
+        user_id = str(user_id)
+        listing_id = str(listing_id)
         favorites.setdefault(user_id, set()).add(listing_id)
         return jsonify({"ok": True}), 201
 
@@ -223,52 +229,84 @@ def create_app(testing: bool = False):
         items = [i for i in items if i]
         return jsonify({"favorites": items, "favorite_ids": fav_ids}), 200
 
-    # ---- Threads & messages (demo) ----
+    # ---- Threads & messages (Mongo-backed) ----
     @app.route("/api/threads", methods=["POST"])
     def create_thread():
         payload = request.get_json(force=True, silent=True) or {}
-        buyer_id = str(payload.get("buyer_id"))
-        seller_id = str(payload.get("seller_id"))
-        listing_id = str(payload.get("listing_id"))
+        raw_buyer_id = payload.get("buyer_id")
+        raw_seller_id = payload.get("seller_id")
+        raw_listing_id = payload.get("listing_id")
+
+        buyer_id = _normalize_optional(raw_buyer_id)
+        seller_id = _normalize_optional(raw_seller_id)
+        listing_id = _normalize_optional(raw_listing_id)
+
         if not buyer_id or not seller_id or not listing_id:
             return jsonify({"error": "buyer_id, seller_id, listing_id required"}), 400
-        thread_id = _next_id(threads)
-        thread = {
-            "id": thread_id,
-            "buyer_id": buyer_id,
-            "seller_id": seller_id,
-            "listing_id": listing_id,
-            "created_at": request.headers.get("Date") or "now",
-        }
-        threads.append(thread)
+
+        buyer_id = str(buyer_id)
+        seller_id = str(seller_id)
+        listing_id = str(listing_id)
+
+        # Ensure listing exists
+        listing = db.get_item(listing_id)
+        if not listing:
+            return jsonify({"error": "listing not found"}), 404
+
+        # Optional: ensure seller matches listing owner if present
+        listing_seller_id = str(listing.get("user_id") or "")
+        if listing_seller_id and listing_seller_id != seller_id:
+            return jsonify({"error": "seller_id does not match listing owner"}), 400
+
+        if buyer_id == seller_id:
+            return jsonify({"error": "buyer and seller cannot be the same user"}), 400
+
+        thread = db.create_thread(buyer_id=buyer_id, seller_id=seller_id, listing_id=listing_id)
         return jsonify(thread), 201
 
     @app.route("/api/threads/<user_id>", methods=["GET"])
     def get_threads(user_id):
-        user_threads = [t for t in threads if t["buyer_id"] == user_id or t["seller_id"] == user_id]
+        user_threads = db.list_threads_for_user(user_id)
         return jsonify(user_threads), 200
 
     @app.route("/api/threads/<thread_id>/messages", methods=["GET"])
     def get_thread_messages(thread_id):
-        thread_messages = [m for m in messages if m["thread_id"] == thread_id]
+        thread = db.get_thread(thread_id)
+        if not thread:
+            return jsonify({"error": "thread not found"}), 404
+        thread_messages = db.list_messages_for_thread(thread_id)
         return jsonify(thread_messages), 200
 
     @app.route("/api/messages", methods=["POST"])
     def send_message():
         payload = request.get_json(force=True, silent=True) or {}
-        thread_id = str(payload.get("thread_id"))
-        sender_id = str(payload.get("sender_id"))
+        raw_thread_id = payload.get("thread_id")
+        raw_sender_id = payload.get("sender_id")
         content = (payload.get("content") or "").strip()
+
+        thread_id = _normalize_optional(raw_thread_id)
+        sender_id = _normalize_optional(raw_sender_id)
+
         if not thread_id or not sender_id or not content:
             return jsonify({"error": "thread_id, sender_id and content required"}), 400
-        message_id = _next_id(messages)
-        message = {"id": message_id, "thread_id": thread_id, "sender_id": sender_id, "content": content}
-        messages.append(message)
+
+        thread_id = str(thread_id)
+        sender_id = str(sender_id)
+
+        thread = db.get_thread(thread_id)
+        if not thread:
+            return jsonify({"error": "thread not found"}), 404
+
+        # Sender must be part of the thread
+        if sender_id not in (thread["buyer_id"], thread["seller_id"]):
+            return jsonify({"error": "sender is not part of this thread"}), 403
+
+        message = db.create_message(thread_id=thread_id, sender_id=sender_id, content=content)
         return jsonify(message), 201
 
     @app.route("/api/messages/<user_id>/unread-count", methods=["GET"])
     def unread_count(user_id):
-        # demo: no unread tracking
+        # Demo: no unread tracking
         return jsonify({"unread": 0}), 200
 
     # ---- Reports & stats (placeholders) ----
@@ -282,7 +320,13 @@ def create_app(testing: bool = False):
 
     @app.route("/api/stats/dashboard", methods=["GET"])
     def dashboard_stats():
-        return jsonify({"listings": len(db.list_items()), "users": len(users), "favorites": sum(len(v) for v in favorites.values())}), 200
+        return jsonify(
+            {
+                "listings": len(db.list_items()),
+                "users": len(users),
+                "favorites": sum(len(v) for v in favorites.values()),
+            }
+        ), 200
 
     @app.route("/api/stats/categories", methods=["GET"])
     def category_stats():
