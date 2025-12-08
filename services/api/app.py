@@ -33,7 +33,7 @@ TEMPLATES_DIR = ROOT_DIR / "templates"
 UPLOAD_DIR = STATIC_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "marketplace")
 
 
