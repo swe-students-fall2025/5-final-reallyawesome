@@ -154,6 +154,11 @@ function validateRegisterForm(form) {
         throw new Error('');
     }
 
+    // Require NYU email domain
+    if (!email.toLowerCase().endsWith('@nyu.edu')) {
+        throw new Error('Email must end with nyu.edu');
+    }
+
     if (password.length < 8) {
         throw new Error(' 8 ');
     }

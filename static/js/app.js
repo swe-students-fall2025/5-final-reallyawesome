@@ -887,8 +887,7 @@ function handleCategoryChange() {
 function getMockCommunities() {
     return [
         { id: 1, name: 'NYU Tandon', type: 'university' },
-        { id: 2, name: 'NYU Washington Square', type: 'university' },
-        { id: 3, name: 'Nearby 3km', type: 'nearby' }
+        { id: 2, name: 'NYU Washington Square', type: 'university' }
     ];
 }
 

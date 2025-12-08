@@ -60,6 +60,10 @@ async function searchInSearchPage(query) {
     // 
     document.getElementById('popularSearchesSection').style.display = 'none';
     document.getElementById('searchHistorySection').style.display = 'none';
+
+    // Persist query into history for future suggestions
+    addToSearchHistory(query);
+    renderSearchHistory();
     
     // Container
     const container = document.getElementById('searchResultsContainer');

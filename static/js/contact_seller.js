@@ -195,14 +195,18 @@ function renderProductInfo(listing) {
         productInfo.innerHTML = '';
         return;
     }
-    
+    const images = Array.isArray(listing.images) ? listing.images.filter(Boolean) : [];
+    const primaryImage = images.length > 0 ? images[0] : null;
     const placeholderColor = getColorByCategory(listing.category);
-    
+    const thumb = primaryImage
+        ? `<img src="${primaryImage}" alt="${listing.title || 'Listing'}" style="width:64px;height:64px;border-radius:16px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.08);">`
+        : `<div class="message-product-thumb" style="background:${placeholderColor};">
+                ${(listing.title || '').substring(0, 10)}
+           </div>`;
+
     productInfo.innerHTML = `
         <div class="message-product-card">
-            <div class="message-product-thumb" style="background:${placeholderColor};">
-                ${(listing.title || '').substring(0, 10)}
-            </div>
+            ${thumb}
             <div class="message-product-body">
                 <div class="message-product-title">${listing.title}</div>
                 <div class="message-product-price">$${listing.price}</div>
@@ -672,7 +676,9 @@ function escapeHtml(text) {
  * Show error message
  */
 function showError(message) {
-    alert('❌ ' + message);
+    if (typeof UI !== 'undefined' && UI.showError) {
+        UI.showError(message);
+    }
 }
 
 // =====  =====

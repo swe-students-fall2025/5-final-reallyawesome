@@ -53,7 +53,6 @@ def create_app(testing: bool = False):
     communities = [
         {"id": 1, "name": "NYU Tandon", "type": "university"},
         {"id": 2, "name": "NYU Washington Square", "type": "university"},
-        {"id": 3, "name": "Nearby 3km", "type": "nearby"},
     ]
 
     def _next_id(collection):
@@ -177,6 +176,14 @@ def create_app(testing: bool = False):
         community_id = payload.get("community_id")
         if not email or not password:
             return jsonify({"error": "email and password required"}), 400
+
+        # Enforce NYU email domain
+        if not email.endswith("@nyu.edu"):
+            return jsonify({"error": "email must end with nyu.edu"}), 400
+
+        # Prevent duplicate registrations for the same email (in-memory store)
+        if any(u.get("email") == email for u in users.values()):
+            return jsonify({"error": "email already registered"}), 400
 
         user_id = _next_id(users)
         user = {
