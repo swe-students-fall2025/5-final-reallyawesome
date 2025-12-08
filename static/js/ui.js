@@ -27,16 +27,19 @@ const UI = {
             return;
         }
 
-        const options = communities.map(c => `
+        const options = [
+            '<option value="">All locations</option>',
+            ...communities.map(c => `
             <option value="${c.id}">${c.name}</option>
-        `).join('');
+            `)
+        ].join('');
 
         select.innerHTML = options;
         select.disabled = false;
 
         const targetValue = typeof activeId !== 'undefined' && activeId !== null
             ? String(activeId)
-            : String(communities[0].id);
+            : '';
 
         select.value = targetValue;
     },

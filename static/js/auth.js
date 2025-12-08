@@ -117,36 +117,14 @@ if (loginForm) {
 
 // ===== Register =====
 const registerForm = document.getElementById('registerForm');
-const communitySelect = document.getElementById('registerCommunity');
-const communityPreview = document.getElementById('communityPreview');
-
-function updateCommunityPreview() {
-    if (!communityPreview || !communitySelect) return;
-
-    const value = communitySelect.value;
-    const selectedOption = communitySelect.selectedOptions?.[0];
-
-    if (value && selectedOption) {
-        communityPreview.style.display = '';
-        communityPreview.textContent = `：${selectedOption.textContent.trim()}`;
-    } else {
-        communityPreview.style.display = 'none';
-        communityPreview.textContent = '';
-    }
-}
 
 function validateRegisterForm(form) {
     const nickname = form.nickname.value.trim();
     const email = form.email.value.trim();
     const password = form.password.value;
     const confirm = form.passwordConfirm.value;
-    const community = form.community_id.value;
 
     if (!nickname || !email || !password || !confirm) {
-        throw new Error('');
-    }
-
-    if (!community) {
         throw new Error('');
     }
 
@@ -170,16 +148,8 @@ function validateRegisterForm(form) {
     return {
         nickname,
         email,
-        password,
-        community_id: parseInt(community, 10)
+        password
     };
-}
-
-if (communitySelect) {
-    communitySelect.addEventListener('change', () => {
-        updateCommunityPreview();
-    });
-    updateCommunityPreview();
 }
 
 if (registerForm) {
