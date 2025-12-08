@@ -1,49 +1,59 @@
 /**
- *  - 
- * Main Application Logic - Final Fixed Version
- * 
- * ：contactSeller()  contact-seller.js 
+ * Main Application Logic
+ *
+ * High-level responsibilities:
+ * - Initialize app on page load
+ * - Load communities, listings, favorites
+ * - Handle tab switching (home/search/messages/profile)
+ * - Handle listing publishing, favorites, profile modals
+ *
+ * NOTE: Lower-level utilities live in:
+ * - api.js: HTTP requests to backend
+ * - state.js: global state management
+ * - ui.js: rendering helpers and toast notifications
+ * - message.js / contact_seller.js: messaging-specific UI
  */
 
 let defaultNavAuthHTML = null;
 let defaultProfileName = null;
 
 /**
- * 
+ * App entry point. Called on DOMContentLoaded.
  */
 async function initApp() {
     try {
         updateNavAuthUI();
         await loadCommunities();
-        
+
         if (isAuthenticated()) {
             await loadUserFavorites();
         }
-        
+
         await loadListings();
         loadPopularSearches();
         loadSearchHistory();
         renderSearchHistory();
     } catch (error) {
-        console.error(':', error);
+        console.error('App init failed:', error);
     }
 }
 
 /**
- * 
+ * Load communities from backend and update selector + state.
+ * Fallback to mock communities if the API fails.
  */
 async function loadCommunities() {
     try {
         const communities = await API.getCommunities();
         updateCommunities(communities);
         UI.renderCommunities(communities, communities[0]?.id);
-        
+
         if (communities.length > 0) {
             updateCurrentCommunity(communities[0].id);
         }
     } catch (error) {
         console.error('Failed to load communities:', error);
-        // 
+        // Fallback to mock communities so UI remains usable
         const mockCommunities = getMockCommunities();
         updateCommunities(mockCommunities);
         UI.renderCommunities(mockCommunities, mockCommunities[0]?.id);
@@ -54,37 +64,38 @@ async function loadCommunities() {
 }
 
 /**
- * 
+ * Handle community selection changes (dropdown or other UI).
  */
 async function selectCommunity(communityId) {
     updateCurrentCommunity(communityId);
-    
+
     const dropdown = document.getElementById('communitySelector');
     if (dropdown) {
         dropdown.value = String(communityId);
     }
-    
+
     await loadListings();
 }
 
 /**
- * Listings
+ * Load listings for current state (community + category).
+ * Falls back to mock listings if API fails or returns empty.
  */
 async function loadListings() {
     UI.showLoading('listingsContainer');
-    
+
     try {
         const currentState = getState();
         const params = {};
-        
+
         if (currentState.currentCommunity) {
             params.community_id = currentState.currentCommunity;
         }
-        
+
         if (currentState.currentCategory !== 'all') {
             params.category = currentState.currentCategory;
         }
-        
+
         const listings = await API.getListings(params);
         // If API returns empty, fall back to mock samples so UI is visible
         const baseList = (listings && listings.length > 0) ? listings : getMockListings();
@@ -93,7 +104,7 @@ async function loadListings() {
         UI.renderListings(filtered);
     } catch (error) {
         console.error('Failed to load listings:', error);
-        // 
+        // Fallback to mock listings so the UI still shows something
         const mockListings = getMockListings();
         const filtered = filterListingsForState(mockListings, getState());
         updateListings(filtered);
@@ -101,6 +112,9 @@ async function loadListings() {
     }
 }
 
+/**
+ * Apply category filter to an existing list based on a snapshot of state.
+ */
 function filterListingsForState(listings, stateSnapshot) {
     const cat = stateSnapshot.currentCategory;
     if (!listings || !Array.isArray(listings)) return [];
@@ -110,7 +124,8 @@ function filterListingsForState(listings, stateSnapshot) {
 }
 
 /**
- * 
+ * Load listings created by the current user.
+ * Optional status filter (e.g., "active", "all").
  */
 async function loadMyListings(status = 'active') {
     const currentUser = getCurrentUser();
@@ -134,7 +149,7 @@ async function loadMyListings(status = 'active') {
 }
 
 /**
- * Favorite
+ * Load favorites for the current user and update state.
  */
 async function loadUserFavorites() {
     const currentUser = getCurrentUser();
@@ -160,7 +175,7 @@ async function loadUserFavorites() {
 }
 
 /**
- * Favorite
+ * Check whether a listing is currently favorited.
  */
 function isListingFavorited(listingId) {
     const currentState = getState();
@@ -168,12 +183,12 @@ function isListingFavorited(listingId) {
 }
 
 /**
- * FavoriteStatus
+ * Toggle favorite status for a listing for the current user.
  */
 async function toggleFavorite(listingId) {
     const currentUser = getCurrentUser();
     if (!currentUser || !currentUser.id) {
-        UI.showError('LoginFavorite');
+        UI.showError('Please log in before adding favorites');
         return;
     }
 
@@ -182,13 +197,13 @@ async function toggleFavorite(listingId) {
     try {
         if (favorited) {
             await API.removeFavorite(currentUser.id, listingId);
-            UI.showSuccess('Unfavorite');
+            UI.showSuccess('Removed from favorites');
         } else {
             await API.addFavorite({
                 user_id: currentUser.id,
                 listing_id: listingId
             });
-            UI.showSuccess('Favorite');
+            UI.showSuccess('Added to favorites');
         }
 
         await loadUserFavorites();
@@ -197,13 +212,13 @@ async function toggleFavorite(listingId) {
         refreshDetailFavoriteButton(listingId);
         refreshFavoriteModal();
     } catch (error) {
-        console.error('Favorite:', error);
-        UI.showError('，');
+        console.error('Failed to toggle favorite:', error);
+        UI.showError('Failed to update favorite status');
     }
 }
 
 /**
- * FavoriteStatus
+ * Sync the favorite button in the listing detail modal with current state.
  */
 function refreshDetailFavoriteButton(listingId) {
     const button = document.getElementById('favoriteToggleBtn');
@@ -216,7 +231,7 @@ function refreshDetailFavoriteButton(listingId) {
 }
 
 /**
- * Favorite（）
+ * Re-render favorites modal content if it is currently open.
  */
 function refreshFavoriteModal() {
     const modal = document.getElementById('myFavoritesModal');
@@ -227,19 +242,22 @@ function refreshFavoriteModal() {
 }
 
 /**
- * 
+ * Update category filter and reload listings.
  */
 async function filterByCategory(category) {
     updateCurrentCategory(category);
-    
-    // UI
+
+    // Highlight active category chip
     document.querySelectorAll('.filter-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.category === category);
     });
-    
+
     await loadListings();
 }
 
+/**
+ * Handle dropdown change event for community selector.
+ */
 function handleCommunityDropdownChange(value) {
     if (!value) return;
     const parsed = parseInt(value, 10);
@@ -249,13 +267,14 @@ function handleCommunityDropdownChange(value) {
 }
 
 /**
- * 
+ * Show listing detail modal for a given listing ID.
+ * Integrates with contactSeller() from contact_seller.js.
  */
 async function showListingDetail(listingId) {
     try {
         const listing = await API.getListing(listingId);
         const detailContent = document.getElementById('detailContent');
-        
+
         if (detailContent) {
             detailContent.innerHTML = UI.renderListingDetail(listing);
             refreshDetailFavoriteButton(listingId);
@@ -263,7 +282,7 @@ async function showListingDetail(listingId) {
             if (listing.images && listing.images.length > 1) {
                 carouselInit(carouselId);
             }
-            // Delegate detail actions (contact) once
+            // Delegate detail actions (contact seller) once
             if (!detailContent.dataset.bound) {
                 detailContent.addEventListener('click', (event) => {
                     const actionEl = event.target.closest('[data-action]');
@@ -278,14 +297,14 @@ async function showListingDetail(listingId) {
                 detailContent.dataset.bound = '1';
             }
         }
-        
+
         openModal('detailModal');
     } catch (error) {
         console.error('Failed to load listing details:', error);
-        // Status
+        // Fallback: try to use already loaded listings from state
         const currentState = getState();
         const listing = currentState.listings.find(l => l.id === listingId);
-        
+
         if (listing && document.getElementById('detailContent')) {
             document.getElementById('detailContent').innerHTML = UI.renderListingDetail(listing);
             refreshDetailFavoriteButton(listingId);
@@ -297,15 +316,19 @@ async function showListingDetail(listingId) {
 }
 
 /**
- * 
+ * Helper for search results to open the same listing detail modal.
  */
 function showListingDetailFromSearch(listingId) {
     showListingDetail(listingId);
 }
 
-// ----- Detail carousel helpers -----
+// ----- Detail image carousel helpers -----
+
 const detailCarouselState = {};
 
+/**
+ * Set current slide for a given carousel instance.
+ */
 function setCarouselSlide(carouselId, index) {
     const container = document.getElementById(carouselId);
     if (!container) return;
@@ -322,21 +345,33 @@ function setCarouselSlide(carouselId, index) {
     detailCarouselState[carouselId] = safeIndex;
 }
 
+/**
+ * Initialize a detail carousel.
+ */
 function carouselInit(carouselId) {
     detailCarouselState[carouselId] = 0;
     setCarouselSlide(carouselId, 0);
 }
 
+/**
+ * Go to next slide in a detail carousel.
+ */
 function carouselNext(carouselId) {
     const current = detailCarouselState[carouselId] || 0;
     setCarouselSlide(carouselId, current + 1);
 }
 
+/**
+ * Go to previous slide in a detail carousel.
+ */
 function carouselPrev(carouselId) {
     const current = detailCarouselState[carouselId] || 0;
     setCarouselSlide(carouselId, current - 1);
 }
 
+/**
+ * Jump to a specific slide in a detail carousel.
+ */
 function carouselGo(carouselId, index) {
     setCarouselSlide(carouselId, index);
 }
@@ -350,28 +385,25 @@ if (typeof window !== 'undefined') {
     window.carouselGo = carouselGo;
 }
 
-// ⚠️ ：contactSeller()  contact-seller.js 
-// ！
-
 /**
- * 
+ * Run a global search from the home page search bar.
  */
 async function searchListings(query) {
     UI.showLoading('listingsContainer', 'Searching...');
-    
+
     if (query && query.length > 0) {
         addToSearchHistory(query);
     }
-    
+
     try {
         const listings = await API.searchListings(query);
         updateListings(listings);
         UI.renderListings(listings);
     } catch (error) {
-        console.error(':', error);
-        // 
+        console.error('Search failed:', error);
+        // Fallback to client-side filtering of current listings
         const currentState = getState();
-        const filtered = currentState.listings.filter(l => 
+        const filtered = currentState.listings.filter(l =>
             l.title.toLowerCase().includes(query.toLowerCase())
         );
         updateListings(filtered);
@@ -380,7 +412,7 @@ async function searchListings(query) {
 }
 
 /**
- * 
+ * Update avatar section in the profile page.
  */
 function updateProfileAvatarDisplay(user) {
     const wrapper = document.getElementById('profileAvatar');
@@ -415,16 +447,14 @@ function updateProfileAvatarDisplay(user) {
     }
 
     const canEdit = typeof isAuthenticated === 'function' && isAuthenticated();
-    if (wrapper) {
-        wrapper.classList.toggle('edit-enabled', canEdit);
-    }
+    wrapper.classList.toggle('edit-enabled', canEdit);
     if (editBtn) {
         editBtn.style.display = canEdit ? '' : 'none';
     }
 }
 
 /**
- * 
+ * Trigger hidden file input for avatar upload.
  */
 function triggerAvatarUpload() {
     if (typeof isAuthenticated === 'function' && !isAuthenticated()) {
@@ -441,7 +471,7 @@ function triggerAvatarUpload() {
 }
 
 /**
- * 
+ * Handle avatar file selection and upload to backend.
  */
 async function handleAvatarFileChange(event) {
     const input = event?.target;
@@ -486,7 +516,7 @@ async function handleAvatarFileChange(event) {
             }
         }
     } catch (error) {
-        console.error(':', error);
+        console.error('Avatar upload failed:', error);
         if (typeof UI !== 'undefined' && UI.showError) {
             UI.showError('Avatar upload failed, try again later');
         }
@@ -498,7 +528,7 @@ async function handleAvatarFileChange(event) {
 }
 
 /**
- * NavigationLoginStatus
+ * Update navigation area and profile name based on current user.
  */
 function updateNavAuthUI() {
     const navAuth = document.getElementById('navAuthArea');
@@ -535,7 +565,7 @@ function updateNavAuthUI() {
 }
 
 /**
- * Log outLogin
+ * Handle user logout: clear state, storage and update UI.
  */
 function handleLogout() {
     if (typeof setCurrentUser === 'function') {
@@ -565,7 +595,7 @@ function handleLogout() {
             sessionStorage.removeItem('authToken');
         }
     } catch (error) {
-        console.error(':', error);
+        console.error('Failed to clear auth token from storage:', error);
     }
 
     updateNavAuthUI();
@@ -575,38 +605,39 @@ function handleLogout() {
 }
 
 /**
- * 
+ * Switch bottom nav tab and corresponding page section.
+ * Integrates with messages tab (message.js).
  */
 function switchTab(tab) {
-    // Bottom nav
+    // Update bottom nav active state
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
     });
-    
+
     const navItems = document.querySelectorAll('.nav-item');
     const tabMap = { home: 0, search: 1, messages: 2, profile: 3 };
     if (navItems[tabMap[tab]]) {
         navItems[tabMap[tab]].classList.add('active');
     }
-    
-    // 
+
+    // Update visible page
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
-    
+
     const pageMap = {
         home: 'homePage',
         search: 'searchPage',
         messages: 'messagesPage',
         profile: 'profilePage'
     };
-    
+
     const targetPage = document.getElementById(pageMap[tab]);
     if (targetPage) {
         targetPage.classList.add('active');
     }
-    
-    // 
+
+    // Tab-specific behavior
     if (tab === 'home') {
         loadListings();
     } else if (tab === 'search') {
@@ -618,15 +649,15 @@ function switchTab(tab) {
         document.getElementById('popularSearchesSection').style.display = 'block';
         document.getElementById('searchHistorySection').style.display = 'block';
     } else if (tab === 'messages') {
-        // 🔧 ：
-       if (typeof initMessagesPage === 'function') {
-        initMessagesPage();   // ← 这一步加载线程列表
-    }
+        // Initialize messages view (thread list) from message.js
+        if (typeof initMessagesPage === 'function') {
+            initMessagesPage();
+        }
     }
 }
 
 /**
- * Search page
+ * Helper to switch to search tab and focus input.
  */
 function switchToSearchPage() {
     switchTab('search');
@@ -639,21 +670,21 @@ function switchToSearchPage() {
 }
 
 /**
- * 
+ * Simple notifications placeholder.
  */
 function showNotifications() {
-    UI.showSuccess('！\n\n: 0\n\n');
+    UI.showSuccess('No new notifications yet');
 }
 
 /**
- * 
+ * Shortcut to switch to messages tab.
  */
 function showMessages() {
     switchTab('messages');
 }
 
 /**
- * 
+ * Open a modal by ID.
  */
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -662,6 +693,9 @@ function openModal(modalId) {
     }
 }
 
+/**
+ * Close a modal by ID.
+ */
 function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
@@ -670,21 +704,21 @@ function closeModal(modalId) {
 }
 
 /**
- * 
+ * Open the create-listing (publish) modal.
  */
 function showPublishModal() {
     openModal('publishModal');
 }
 
 /**
- * “”
+ * Open "My Listings" modal and load user's listings.
  */
 async function openMyListingsModal() {
     const modalId = 'myListingsModal';
     const container = document.getElementById('myListingsContainer');
-    
+
     openModal(modalId);
-    
+
     if (!container) {
         return;
     }
@@ -732,14 +766,14 @@ async function openMyListingsModal() {
     } catch (error) {
         container.innerHTML = `
             <div class="profile-empty" style="color: #ef4444;">
-                Load failed, please try again later
+                Failed to load your listings, please try again later
             </div>
         `;
     }
 }
 
 /**
- * “Favorite”
+ * Open "My Favorites" modal and load user's favorites.
  */
 async function openFavoritesModal() {
     const modalId = 'myFavoritesModal';
@@ -779,7 +813,7 @@ async function openFavoritesModal() {
 }
 
 /**
- * Favorite
+ * Render content inside "My Favorites" modal.
  */
 function renderFavoritesModalContent(favorites) {
     const container = document.getElementById('myFavoritesContainer');
@@ -814,11 +848,11 @@ function renderFavoritesModalContent(favorites) {
 }
 
 /**
- * Submit listing form
+ * Handle submit event for the "Publish listing" form.
  */
 async function handlePublish(event) {
     event.preventDefault();
-    
+
     const currentUser = getCurrentUser();
     if (!currentUser || !currentUser.id) {
         UI.showError('Please log in before posting items');
@@ -850,7 +884,7 @@ async function handlePublish(event) {
             formData.append('images', file);
         });
     }
-    
+
     try {
         await API.createListing(formData);
         UI.showSuccess('Listing created!');
@@ -862,7 +896,7 @@ async function handlePublish(event) {
         try {
             await loadMyListings();
         } catch (refreshError) {
-            console.warn(':', refreshError);
+            console.warn('Failed to refresh my listings after publish:', refreshError);
         }
     } catch (error) {
         console.error('Publish failed:', error);
@@ -871,7 +905,7 @@ async function handlePublish(event) {
 }
 
 /**
- * （/Course code）
+ * Show or hide course code field based on category selection.
  */
 function handleCategoryChange() {
     const category = document.getElementById('publishCategory').value;
@@ -882,7 +916,7 @@ function handleCategoryChange() {
 }
 
 /**
- *  - 
+ * Mock communities for offline / error fallback.
  */
 function getMockCommunities() {
     return [
@@ -892,7 +926,7 @@ function getMockCommunities() {
 }
 
 /**
- *  - 
+ * Mock listings for offline / error fallback.
  */
 function getMockListings() {
     return [
@@ -955,15 +989,15 @@ function getMockListings() {
     ];
 }
 
-// 
+// Global DOMContentLoaded bootstrap
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof hydrateCurrentUserFromStorage === 'function') {
         hydrateCurrentUserFromStorage();
     }
     updateNavAuthUI();
     initApp();
-    
-    // 
+
+    // Click outside modal to close
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', function(e) {
             if (e.target === this) {
