@@ -67,11 +67,12 @@ async function loadCommunities() {
  * Handle community selection changes (dropdown or other UI).
  */
 async function selectCommunity(communityId) {
-    updateCurrentCommunity(communityId);
+    const normalized = communityId === '' || communityId === null ? null : communityId;
+    updateCurrentCommunity(normalized);
 
     const dropdown = document.getElementById('communitySelector');
     if (dropdown) {
-        dropdown.value = String(communityId);
+        dropdown.value = normalized === null ? '' : String(normalized);
     }
 
     await loadListings();
@@ -97,16 +98,13 @@ async function loadListings() {
         }
 
         const listings = await API.getListings(params);
-        // If API returns empty, fall back to mock samples so UI is visible
-        const baseList = (listings && listings.length > 0) ? listings : getMockListings();
+        const baseList = Array.isArray(listings) ? listings : [];
         const filtered = filterListingsForState(baseList, currentState);
         updateListings(filtered);
         UI.renderListings(filtered);
     } catch (error) {
         console.error('Failed to load listings:', error);
-        // Fallback to mock listings so the UI still shows something
-        const mockListings = getMockListings();
-        const filtered = filterListingsForState(mockListings, getState());
+        const filtered = filterListingsForState([], getState());
         updateListings(filtered);
         UI.renderListings(filtered);
     }
@@ -259,7 +257,10 @@ async function filterByCategory(category) {
  * Handle dropdown change event for community selector.
  */
 function handleCommunityDropdownChange(value) {
-    if (!value) return;
+    if (value === '') {
+        selectCommunity(null);
+        return;
+    }
     const parsed = parseInt(value, 10);
     if (!Number.isNaN(parsed)) {
         selectCommunity(parsed);
@@ -599,6 +600,7 @@ function handleLogout() {
     }
 
     updateNavAuthUI();
+    stopUnreadBadgePolling();
     if (typeof UI !== 'undefined' && UI.showSuccess) {
         UI.showSuccess('Logged out');
     }
@@ -674,6 +676,52 @@ function switchToSearchPage() {
  */
 function showNotifications() {
     UI.showSuccess('No new notifications yet');
+}
+
+/**
+ * Unread message badge logic (polls /api/messages/<user_id>/unread-count).
+ */
+let unreadBadgeInterval = null;
+
+function stopUnreadBadgePolling() {
+    if (unreadBadgeInterval) {
+        clearInterval(unreadBadgeInterval);
+        unreadBadgeInterval = null;
+    }
+}
+
+async function refreshUnreadBadge() {
+    const badge = document.getElementById('messageBadge');
+    const currentUser = typeof getCurrentUser === 'function' ? getCurrentUser() : null;
+
+    if (!badge || !currentUser || !currentUser.id) {
+        if (badge) {
+            badge.style.display = 'none';
+            badge.textContent = '0';
+        }
+        stopUnreadBadgePolling();
+        return;
+    }
+
+    try {
+        const data = await API.getUnreadCount(currentUser.id);
+        const count = Number(data?.unread) || 0;
+        if (count > 0) {
+            badge.style.display = 'inline-block';
+            badge.textContent = count > 99 ? '99+' : String(count);
+        } else {
+            badge.style.display = 'none';
+            badge.textContent = '0';
+        }
+    } catch (error) {
+        console.warn('Unread badge refresh failed:', error);
+    }
+}
+
+function startUnreadBadgePolling() {
+    stopUnreadBadgePolling();
+    refreshUnreadBadge();
+    unreadBadgeInterval = setInterval(refreshUnreadBadge, 20000);
 }
 
 /**
@@ -869,9 +917,14 @@ async function handlePublish(event) {
     formData.append('category', category);
     formData.append('price', document.getElementById('publishPrice').value);
     formData.append('description', document.getElementById('publishDescription').value);
-    formData.append('meetup_point', document.getElementById('publishMeetupPoint').value);
+    const meetupPoint = document.getElementById('publishMeetupPoint').value;
+    formData.append('meetup_point', meetupPoint);
     const currentState = getState();
-    const communityId = currentState.currentCommunity || currentUser.community_id || '';
+    const inferredCommunity = getCommunityIdFromMeetup(meetupPoint);
+    const communityId =
+        inferredCommunity ||
+        (currentUser.community_id ? String(currentUser.community_id) : '') ||
+        (currentState.currentCommunity ? String(currentState.currentCommunity) : '');
     formData.append('community_id', communityId);
 
     const courseCode = document.getElementById('publishCourseCode').value;
@@ -920,73 +973,38 @@ function handleCategoryChange() {
  */
 function getMockCommunities() {
     return [
-        { id: 1, name: 'NYU Tandon', type: 'university' },
+        { id: 1, name: 'NYU Brooklyn Campus', type: 'university' },
         { id: 2, name: 'NYU Washington Square', type: 'university' }
     ];
 }
 
-/**
- * Mock listings for offline / error fallback.
- */
-function getMockListings() {
-    return [
-        {
-            id: 1,
-            title: 'CS-UY 1134 Introduction to Programming',
-            price: 45,
-            category: 'textbook',
-            meetup_point: 'Dibner Library',
-            user: { id: 2, verify_status: 'email_verified', nickname: 'Student A' }
-        },
-        {
-            id: 2,
-            title: 'Dorm chair, gently used, adjustable height',
-            price: 30,
-            category: 'furniture',
-            meetup_point: 'Lipton Hall',
-            user: { id: 2, verify_status: 'phone_verified', nickname: 'Student B' }
-        },
-        {
-            id: 3,
-            title: 'TI-84 Plus calculator for engineering classes',
-            price: 60,
-            category: 'electronics',
-            meetup_point: 'MetroTech Center',
-            user: { id: 2, verify_status: 'email_verified', nickname: 'Student C' }
-        },
-        {
-            id: 4,
-            title: 'Eye-care lamp with three brightness levels',
-            price: 15,
-            category: 'dorm_supplies',
-            meetup_point: 'Clark Street',
-            user: { id: 2, verify_status: 'phone_verified', nickname: 'Student D' }
-        },
-        {
-            id: 5,
-            title: 'MA-UY 1024 past exam collection',
-            price: 10,
-            category: 'textbook',
-            meetup_point: 'Rogers Hall',
-            user: { id: 2, verify_status: 'email_verified', nickname: 'Student E' }
-        },
-        {
-            id: 6,
-            title: 'Compact microwave 700W for dorm',
-            price: 25,
-            category: 'electronics',
-            meetup_point: '3rd Ave',
-            user: { id: 2, verify_status: 'phone_verified', nickname: 'Student F' }
-        },
-        {
-            id: 7,
-            title: 'Downtown studio sublet (May-Aug)',
-            price: 2200,
-            category: 'rental',
-            meetup_point: 'Washington Square',
-            user: { id: 3, verify_status: 'phone_verified', nickname: 'Resident G' }
-        }
+function getCommunityIdFromMeetup(meetupPoint) {
+    if (!meetupPoint) return '';
+    const value = meetupPoint.toLowerCase();
+
+    const tandonKeywords = [
+        'dibner',
+        'metrotech',
+        'rogers hall',
+        'lipton',
+        'clark street',
+        'tandon'
     ];
+    const wsqKeywords = [
+        'washington square',
+        'bobst',
+        'kimmel',
+        'palladium',
+        'third avenue north',
+        'weinstein',
+        'washington mews',
+        'union square',
+        'astor place'
+    ];
+
+    if (tandonKeywords.some(k => value.includes(k))) return '1';
+    if (wsqKeywords.some(k => value.includes(k))) return '2';
+    return '';
 }
 
 // Global DOMContentLoaded bootstrap
@@ -996,6 +1014,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updateNavAuthUI();
     initApp();
+    startUnreadBadgePolling();
 
     // Click outside modal to close
     document.querySelectorAll('.modal').forEach(modal => {

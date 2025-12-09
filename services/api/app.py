@@ -30,6 +30,28 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
 MONGO_DB = os.getenv("MONGO_DB", "marketplace")
 
+BROOKLYN_KEYWORDS = {
+    "dibner",
+    "metrotech",
+    "rogers hall",
+    "lipton",
+    "clark street",
+    "tandon",
+    "brooklyn",
+}
+
+WSQ_KEYWORDS = {
+    "washington square",
+    "bobst",
+    "kimmel",
+    "palladium",
+    "third avenue north",
+    "weinstein",
+    "washington mews",
+    "union square",
+    "astor place",
+}
+
 
 def create_app(testing: bool = False):
     app = Flask(__name__, static_folder=str(STATIC_DIR), template_folder=str(TEMPLATES_DIR))
@@ -45,7 +67,7 @@ def create_app(testing: bool = False):
     favorites = {}
     reports = []
     communities = [
-        {"id": 1, "name": "NYU Tandon", "type": "university"},
+        {"id": 1, "name": "NYU Brooklyn Campus", "type": "university"},
         {"id": 2, "name": "NYU Washington Square", "type": "university"},
     ]
 
@@ -56,6 +78,16 @@ def create_app(testing: bool = False):
         if value in (None, "", "None", "null", "undefined"):
             return None
         return value
+
+    def _infer_community_id(meetup_point: str):
+        if not meetup_point:
+            return None
+        lower = meetup_point.lower()
+        if any(key in lower for key in BROOKLYN_KEYWORDS):
+            return "1"
+        if any(key in lower for key in WSQ_KEYWORDS):
+            return "2"
+        return None
 
     @app.route("/api/health")
     @app.route("/health")
@@ -118,6 +150,11 @@ def create_app(testing: bool = False):
             user_id = payload.get("user_id") or "1"
             course_code = payload.get("course_code")
             community_id = payload.get("community_id")
+
+        if not community_id:
+            community_id = _infer_community_id(meetup_point)
+        if community_id:
+            community_id = str(community_id)
 
         if not title or price is None:
             return jsonify({"error": "title and price are required"}), 400
