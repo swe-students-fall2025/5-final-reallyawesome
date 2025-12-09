@@ -2,12 +2,13 @@
 
 [![API CI/CD](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/api.yml/badge.svg)](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/api.yml)
 [![MongoDB CI/CD](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/mongo.yml/badge.svg)](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/mongo.yml)
+[![Test Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen)](./services/api/tests/)
 
 A full-stack secondhand marketplace web application designed for NYU students to buy, sell, and trade items within their campus community. Built with Flask, MongoDB, and Docker.
 
 ---
 
-## 📋 Project Overview
+## Project Overview
 
 NYU Campus Marketplace is a containerized web platform that enables students to:
 - 🛍️ **Browse Listings**: Search and filter items by category and campus location
@@ -28,7 +29,7 @@ NYU Campus Marketplace is a containerized web platform that enables students to:
 
 ---
 
-## 👥 Team Members
+## Team Members
 
 - **Leo Li** - [Leo Li](https://github.com/LiShangcheng)
 - **Leo Qian** - [Leo Qian](https://github.com/Leo-codingMaster)
@@ -36,7 +37,7 @@ NYU Campus Marketplace is a containerized web platform that enables students to:
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 This project consists of two main subsystems:
 
@@ -234,7 +235,7 @@ communities = [...]  # Static campus locations
 
 1. Clone the repository
 ```bash
-git clone https://github.com/software-students-fall2024/5-final-reallyawesome.git
+git clone https://github.com/swe-students-fall2025/5-final-reallyawesome.git
 cd 5-final-reallyawesome
 ```
 
@@ -245,7 +246,7 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
-Edit .env with your configuration:
+Edit .env with your configuration (see [Environment Variables](#-environment-variables) section below for details):
 ```
 MONGO_URI=mongodb://mongo:27017
 MONGO_DB=marketplace
@@ -310,6 +311,15 @@ coverage report --fail-under=80
 ---
 
 ## ⚙️ Environment Variables
+
+### Creating Your .env File
+
+A template file is provided in the repository:
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your configuration.
 
 ### Required Variables
 
@@ -587,60 +597,6 @@ GET /api/stats/categories   # Get category breakdown
 
 ---
 
-## 🐛 Known Issues & Future Enhancements
-
-### Security
-- Add bcrypt password hashing
-- Implement JWT-based authentication
-- CSRF token protection
-- Rate limiting on API endpoints
-
-### Features
-- Email verification workflow
-- Transaction history tracking
-- Rating/review system for sellers
-- Push notifications for new messages
-- Report/flag inappropriate listings
-- In-app payment integration
-
-### Technical
-- Redis for caching and sessions
-- Elasticsearch for advanced search
-- WebSocket for real-time chat
-- Image compression before upload
-- Pagination for large result sets
-
----
-
 ## 📄 License
 
 This project is licensed under the GNU General Public License v3.0 - see the LICENSE file for details.
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (git checkout -b feature/amazing-feature)
-3. Commit changes (git commit -m 'feat: add amazing feature')
-4. Push to branch (git push origin feature/amazing-feature)
-5. Open a Pull Request
-
-**Commit Convention**: Follow Conventional Commits
-- feat: New feature
-- fix: Bug fix
-- docs: Documentation changes
-- test: Test additions/changes
-- refactor: Code refactoring
-
----
-
-## 📧 Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Contact: Leo Qian (@LeoQ0724)
-
----
-
-**Note**: This is a student project created for educational purposes at NYU. Not intended for production use without significant security enhancements.
