@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
 from bson.objectid import ObjectId
 
 try:
@@ -44,6 +45,23 @@ class _InMemoryCollection:
     def insert_many(self, docs):
         for doc in docs:
             self.insert_one(doc)
+
+    def delete_one(self, query):
+        removed = 0
+        for i, doc in enumerate(list(self._docs)):
+            if self._matches(doc, query):
+                self._docs.pop(i)
+                removed = 1
+                break
+        return type("DeleteResult", (), {"deleted_count": removed})
+
+    def delete_many(self, query):
+        removed = 0
+        for doc in list(self._docs):
+            if self._matches(doc, query):
+                self._docs.remove(doc)
+                removed += 1
+        return type("DeleteResult", (), {"deleted_count": removed})
 
     def find(self, query=None):
         query = query or {}
@@ -106,6 +124,8 @@ class _InMemoryDB:
         self.items = _InMemoryCollection()
         self.threads = _InMemoryCollection()
         self.messages = _InMemoryCollection()
+        self.users = _InMemoryCollection()
+        self.favorites = _InMemoryCollection()
 
     def __getitem__(self, _name):
         return self
@@ -126,6 +146,8 @@ class Database:
 
     def _ensure_indexes(self):
         self._db.items.create_index("name")
+        if hasattr(self._db, "users"):
+            self._db.users.create_index("email", unique=True)
         if hasattr(self._db, "threads"):
             self._db.threads.create_index("buyer_id")
             self._db.threads.create_index("seller_id")
@@ -133,6 +155,8 @@ class Database:
             self._db.messages.create_index("thread_id")
             self._db.messages.create_index("receiver_id")
             self._db.messages.create_index("is_read")
+        if hasattr(self._db, "favorites"):
+            self._db.favorites.create_index([("user_id", 1), ("listing_id", 1)], unique=True)
 
     # ---------- Listings ----------
 
@@ -211,6 +235,69 @@ class Database:
 
         result = self._db.items.update_one({"_id": oid}, {"$set": updates})
         return bool(getattr(result, "matched_count", 0))
+
+    # ---------- Users ----------
+
+    def create_user(
+        self,
+        email: str,
+        password: str,
+        nickname: str,
+        community_id: Optional[str] = None,
+        avatar: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_email = (email or "").lower().strip()
+        if self.get_user_by_email(normalized_email):
+            return {}
+        doc: Dict[str, Any] = {
+            "email": normalized_email,
+            "password": password,
+            "nickname": nickname,
+            "community_id": community_id,
+            "avatar": avatar,
+        }
+        try:
+            result = self._db.users.insert_one(doc)
+        except DuplicateKeyError:
+            return {}
+        # Remove sensitive/non-serializable fields before returning
+        doc.pop("password", None)
+        doc.pop("_id", None)
+        doc["id"] = str(result.inserted_id)
+        return doc
+
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        normalized = (email or "").lower().strip()
+        doc = self._db.users.find_one({"email": normalized})
+        if not doc:
+            return None
+        out = dict(doc)
+        out["id"] = str(out.pop("_id", ""))
+        return out
+
+    def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            doc = self._db.users.find_one({"_id": ObjectId(user_id)})
+        except Exception:
+            return None
+        if not doc:
+            return None
+        out = dict(doc)
+        out["id"] = str(out.pop("_id", ""))
+        out.pop("password", None)
+        return out
+
+    def update_user(self, user_id: str, updates: Dict[str, Any]) -> bool:
+        try:
+            oid = ObjectId(user_id)
+        except Exception:
+            return False
+        updates.pop("_id", None)
+        result = self._db.users.update_one({"_id": oid}, {"$set": updates})
+        return bool(getattr(result, "matched_count", 0))
+
+    def count_users(self) -> int:
+        return int(self._db.users.estimated_document_count())
 
     def seed_if_empty(self):
         if self._db.items.estimated_document_count() == 0:
@@ -338,3 +425,30 @@ class Database:
     def mark_thread_messages_read(self, thread_id: str, user_id: str) -> None:
         query = {"thread_id": thread_id, "receiver_id": user_id, "is_read": False}
         self._db.messages.update_many(query, {"$set": {"is_read": True}})
+
+    # ---------- Favorites ----------
+
+    def add_favorite(self, user_id: str, listing_id: str) -> bool:
+        try:
+            self._db.favorites.insert_one({"user_id": str(user_id), "listing_id": str(listing_id)})
+            return True
+        except Exception:
+            # Duplicate or insertion error
+            return False
+
+    def remove_favorite(self, user_id: str, listing_id: str) -> bool:
+        result = self._db.favorites.delete_one({"user_id": str(user_id), "listing_id": str(listing_id)})
+        return bool(getattr(result, "deleted_count", 0))
+
+    def list_favorite_ids(self, user_id: str) -> List[str]:
+        ids: List[str] = []
+        for doc in self._db.favorites.find({"user_id": str(user_id)}):
+            ids.append(str(doc.get("listing_id")))
+        return ids
+
+    def count_favorites(self) -> int:
+        return int(self._db.favorites.estimated_document_count())
+
+    def remove_favorites_by_listing(self, listing_id: str) -> int:
+        result = self._db.favorites.delete_many({"listing_id": str(listing_id)})
+        return int(getattr(result, "deleted_count", 0))

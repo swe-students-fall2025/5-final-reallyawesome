@@ -204,7 +204,14 @@ if (registerForm) {
         }
     });
 
-    updateCommunityPreview();
+    if (typeof updateCommunityPreview === 'function') {
+        updateCommunityPreview();
+    }
+}
+
+// Fallback stub to avoid ReferenceError if preview logic is not present
+function updateCommunityPreview() {
+    return;
 }
 
 /* // =====  =====

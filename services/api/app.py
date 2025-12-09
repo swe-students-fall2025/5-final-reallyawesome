@@ -64,10 +64,8 @@ def create_app(testing: bool = False):
     if not testing:
         db.seed_if_empty()
 
-    # In-memory demo stores
-    users = {}
+    # In-memory token store (users/favorites now persisted)
     auth_tokens = {}
-    favorites = {}
     reports = []
     communities = [
         {"id": 1, "name": "NYU Brooklyn Campus", "type": "university"},
@@ -167,7 +165,7 @@ def create_app(testing: bool = False):
         except (TypeError, ValueError):
             return jsonify({"error": "price must be a number"}), 400
 
-        user_info = users.get(user_id) or {
+        user_info = db.get_user(user_id) or {
             "id": user_id,
             "nickname": "Seller",
             "verify_status": "email_verified",
@@ -214,8 +212,7 @@ def create_app(testing: bool = False):
 
             if status == "sold":
                 # Remove from favorites so "My Wish" no longer shows sold-out items.
-                for fav_user, fav_set in favorites.items():
-                    favorites[fav_user] = {fid for fid in fav_set if fid != str(item_id)}
+                db.remove_favorites_by_listing(item_id)
 
             refreshed = db.get_item(item_id)
             return jsonify(refreshed), 200
@@ -253,46 +250,42 @@ def create_app(testing: bool = False):
         if not email.endswith("@nyu.edu"):
             return jsonify({"error": "email must end with nyu.edu"}), 400
 
-        if any(u.get("email") == email for u in users.values()):
+        created = db.create_user(
+            email=email,
+            password=password,
+            nickname=nickname,
+            community_id=community_id,
+        )
+        if not created:
             return jsonify({"error": "email already registered"}), 400
-
-        user_id = _next_id(users)
-        user = {
-            "id": user_id,
-            "email": email,
-            "nickname": nickname,
-            "community_id": community_id,
-            "verify_status": "email_verified",
-            "avatar": None,
-        }
-        users[user_id] = {**user, "password": password}
-        token = f"token-{user_id}"
-        auth_tokens[token] = user_id
-        return jsonify({"token": token, "user": user}), 201
+        token = f"token-{created['id']}"
+        auth_tokens[token] = created["id"]
+        return jsonify({"token": token, "user": created}), 201
 
     @app.route("/api/auth/login", methods=["POST"])
     def login():
         payload = request.get_json(force=True, silent=True) or {}
         email = (payload.get("email") or "").lower().strip()
         password = payload.get("password") or ""
-        for user_id, info in users.items():
-            if info.get("email") == email and info.get("password") == password:
-                user = {k: v for k, v in info.items() if k != "password"}
-                token = f"token-{user_id}"
-                auth_tokens[token] = user_id
-                return jsonify({"token": token, "user": user}), 200
+        user_doc = db.get_user_by_email(email)
+        if user_doc and user_doc.get("password") == password:
+            # Remove password before returning
+            safe_user = {k: v for k, v in user_doc.items() if k != "password"}
+            token = f"token-{safe_user['id']}"
+            auth_tokens[token] = safe_user["id"]
+            return jsonify({"token": token, "user": safe_user}), 200
         return jsonify({"error": "Invalid credentials"}), 401
 
     @app.route("/api/users/<user_id>", methods=["GET"])
     def get_user(user_id):
-        user = users.get(user_id)
+        user = db.get_user(user_id)
         if not user:
             return jsonify({"error": "Not found"}), 404
-        return jsonify({k: v for k, v in user.items() if k != "password"}), 200
+        return jsonify(user), 200
 
     @app.route("/api/users/<user_id>/avatar", methods=["POST"])
     def upload_avatar(user_id):
-        user = users.get(user_id)
+        user = db.get_user(user_id)
         if not user:
             return jsonify({"error": "Not found"}), 404
         upload = request.files.get("avatar")
@@ -301,12 +294,15 @@ def create_app(testing: bool = False):
             unique_name = f"{uuid.uuid4().hex}_{filename}"
             dest = UPLOAD_DIR / unique_name
             upload.save(dest)
-            user["avatar"] = f"/static/uploads/{unique_name}"
+            avatar_url = f"/static/uploads/{unique_name}"
         else:
-            user["avatar"] = f"https://placehold.co/120x120?text={user.get('nickname','User')}"
-        return jsonify({"user": {k: v for k, v in user.items() if k != "password"}}), 200
+            avatar_url = f"https://placehold.co/120x120?text={user.get('nickname','User')}"
 
-    # ---- Favorites (in-memory) ----
+        db.update_user(user_id, {"avatar": avatar_url})
+        fresh = db.get_user(user_id)
+        return jsonify({"user": fresh}), 200
+
+    # ---- Favorites (Mongo) ----
 
     @app.route("/api/favorites", methods=["POST"])
     def add_favorite():
@@ -317,7 +313,9 @@ def create_app(testing: bool = False):
             return jsonify({"error": "user_id and listing_id required"}), 400
         user_id = str(user_id)
         listing_id = str(listing_id)
-        favorites.setdefault(user_id, set()).add(listing_id)
+        ok = db.add_favorite(user_id, listing_id)
+        if not ok:
+            return jsonify({"error": "failed to add favorite"}), 400
         return jsonify({"ok": True}), 201
 
     @app.route("/api/favorites/<listing_id>", methods=["DELETE"])
@@ -325,13 +323,12 @@ def create_app(testing: bool = False):
         user_id = request.args.get("user_id")
         if not user_id:
             return jsonify({"error": "user_id required"}), 400
-        if user_id in favorites:
-            favorites[user_id].discard(str(listing_id))
+        db.remove_favorite(user_id, listing_id)
         return jsonify({"ok": True}), 200
 
     @app.route("/api/users/<user_id>/favorites", methods=["GET"])
     def get_user_favorites(user_id):
-        fav_ids = list(favorites.get(user_id, []))
+        fav_ids = db.list_favorite_ids(user_id)
         items = [db.get_item(fid) for fid in fav_ids]
         items = [i for i in items if i and (i.get("status") or "active") == "active"]
         fav_ids = [i["id"] for i in items]
@@ -372,11 +369,13 @@ def create_app(testing: bool = False):
 
         # Fallback names from known users or listing if not provided
         if not buyer_name:
-            buyer_name = users.get(buyer_id, {}).get("nickname") or f"User {buyer_id}"
+            buyer_user = db.get_user(buyer_id)
+            buyer_name = (buyer_user or {}).get("nickname") or f"User {buyer_id}"
         if not seller_name:
+            seller_user = db.get_user(seller_id)
             seller_name = (
                 listing.get("user", {}).get("nickname")
-                or users.get(seller_id, {}).get("nickname")
+                or (seller_user or {}).get("nickname")
                 or f"User {seller_id}"
             )
 
@@ -475,8 +474,8 @@ def create_app(testing: bool = False):
         return jsonify(
             {
                 "listings": len(db.list_items()),
-                "users": len(users),
-                "favorites": sum(len(v) for v in favorites.values()),
+                "users": db.count_users(),
+                "favorites": db.count_favorites(),
             }
         ), 200
 
