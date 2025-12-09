@@ -345,6 +345,8 @@ def create_app(testing: bool = False):
         raw_buyer_id = payload.get("buyer_id")
         raw_seller_id = payload.get("seller_id")
         raw_listing_id = payload.get("listing_id")
+        buyer_name = payload.get("buyer_name") or payload.get("buyer_nickname")
+        seller_name = payload.get("seller_name") or payload.get("seller_nickname")
 
         buyer_id = _normalize_optional(raw_buyer_id)
         seller_id = _normalize_optional(raw_seller_id)
@@ -368,7 +370,23 @@ def create_app(testing: bool = False):
         if buyer_id == seller_id:
             return jsonify({"error": "buyer and seller cannot be the same user"}), 400
 
-        thread = db.create_thread(buyer_id=buyer_id, seller_id=seller_id, listing_id=listing_id)
+        # Fallback names from known users or listing if not provided
+        if not buyer_name:
+            buyer_name = users.get(buyer_id, {}).get("nickname") or f"User {buyer_id}"
+        if not seller_name:
+            seller_name = (
+                listing.get("user", {}).get("nickname")
+                or users.get(seller_id, {}).get("nickname")
+                or f"User {seller_id}"
+            )
+
+        thread = db.create_thread(
+            buyer_id=buyer_id,
+            seller_id=seller_id,
+            listing_id=listing_id,
+            buyer_name=buyer_name,
+            seller_name=seller_name,
+        )
         return jsonify(thread), 201
 
     @app.route("/api/threads/<user_id>", methods=["GET"])

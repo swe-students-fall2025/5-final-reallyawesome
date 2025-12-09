@@ -253,12 +253,21 @@ class Database:
 
     # ---------- Threads ----------
 
-    def create_thread(self, buyer_id: str, seller_id: str, listing_id: str) -> Dict[str, Any]:
+    def create_thread(
+        self,
+        buyer_id: str,
+        seller_id: str,
+        listing_id: str,
+        buyer_name: Optional[str] = None,
+        seller_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
         now = datetime.utcnow()
         doc: Dict[str, Any] = {
             "buyer_id": buyer_id,
             "seller_id": seller_id,
             "listing_id": listing_id,
+            "buyer_name": buyer_name,
+            "seller_name": seller_name,
             "created_at": now.isoformat(),
         }
         result = self._db.threads.insert_one(doc)
@@ -286,6 +295,9 @@ class Database:
         ]
         for doc in filtered:
             doc["id"] = str(doc.pop("_id", ""))
+            # Ensure names are present for UI display
+            doc["buyer_name"] = doc.get("buyer_name") or f"User {doc.get('buyer_id')}"
+            doc["seller_name"] = doc.get("seller_name") or f"User {doc.get('seller_id')}"
         filtered.sort(key=lambda d: d.get("created_at", ""), reverse=True)
         return filtered
 

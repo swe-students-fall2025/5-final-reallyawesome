@@ -136,9 +136,13 @@ async function loadThreadList() {
                     // ignore listing fetch failures; fallback to id only
                 }
                 const otherUserId = thread.buyer_id === String(userId) ? thread.seller_id : thread.buyer_id;
-                let otherUserName = "User";
+                // Prefer thread-provided names to avoid missing profile lookups
+                let otherUserName =
+                    otherUserId === thread.buyer_id
+                        ? thread.buyer_name
+                        : thread.seller_name;
 
-                if (otherUserId) {
+                if (!otherUserName && otherUserId) {
                     // Prefer listing owner name when available
                     if (listing?.user && String(listing.user.id) === String(otherUserId)) {
                         otherUserName =
