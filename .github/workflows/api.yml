@@ -75,22 +75,15 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
+      DO_APP_ID: ${{ secrets.DO_APP_ID }}
     if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
     steps:
-      - name: Deploy to DigitalOcean
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.DO_HOST }}
-          username: root
-          key: ${{ secrets.DO_SSH_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/marketplace-api:latest
-            docker stop marketplace-api || true
-            docker rm marketplace-api || true
-            docker run -d \
-              --name marketplace-api \
-              --restart unless-stopped \
-              -p 5000:5000 \
-              -e MONGO_URI=${{ secrets.MONGO_URI }} \
-              -e MONGO_DB=marketplace \
-              ${{ secrets.DOCKERHUB_USERNAME }}/marketplace-api:latest
+      - name: Trigger DigitalOcean App Platform deployment
+        if: ${{ env.DO_API_TOKEN != '' && env.DO_APP_ID != '' }}
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${DO_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.digitalocean.com/v2/apps/${DO_APP_ID}/deployments"
