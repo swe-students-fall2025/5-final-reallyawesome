@@ -75,12 +75,12 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.DO_API_TOKEN != '' && secrets.DO_APP_ID != '' }}
+    env:
+      DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
+      DO_APP_ID: ${{ secrets.DO_APP_ID }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.DO_API_TOKEN != '' && env.DO_APP_ID != '' }}
     steps:
       - name: Trigger DigitalOcean App Platform deployment
-        env:
-          DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
-          DO_APP_ID: ${{ secrets.DO_APP_ID }}
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${DO_API_TOKEN}" \
