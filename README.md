@@ -2,9 +2,9 @@
 
 [![API CI/CD](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/api.yml/badge.svg)](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/api.yml)
 [![MongoDB CI/CD](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/mongo.yml/badge.svg)](https://github.com/swe-students-fall2025/5-final-reallyawesome/actions/workflows/mongo.yml)
-[![Test Coverage](https://img.shields.io/badge/coverage-80%25-brightgreen)](./services/api/tests/)
+[![Test Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](./services/api/tests/)
 
-A full-stack secondhand marketplace for NYU students to buy, sell, and trade campus items. Built with Flask, MongoDB, and Docker.
+A full-stack secondhand marketplace for NYU students to buy, sell, and trade campus items. Built with Flask, MongoDB, Docker, and deployed to DigitalOcean App Platform.
 
 ## 👥 Team
 
@@ -26,11 +26,12 @@ A full-stack secondhand marketplace for NYU students to buy, sell, and trade cam
 **Two subsystems:**
 
 1. **Flask API** (`services/api/`) - Python REST backend
-   - Docker Image: [leoq0724/marketplace-api:latest](https://hub.docker.com/r/leoq0724/marketplace-api)
-   - Port: 5001 (mapped to 5002 on host)
+   - Docker Image (CI): [leoli120959/marketplace-api:latest](https://hub.docker.com/r/leoli120959/marketplace-api)  
+   - Docker Image (App Platform): [leoli120959/swap-hub-api:latest](https://hub.docker.com/r/leoli120959/swap-hub-api)
+   - Port: 5000 (mapped to 5002 via compose)
 
 2. **MongoDB** (`services/mongo/`) - Data persistence
-   - Docker Image: [leoq0724/marketplace-mongo:latest](https://hub.docker.com/r/leoq0724/marketplace-mongo)
+   - Docker Image: [leoli120959/marketplace-mongo:latest](https://hub.docker.com/r/leoli120959/marketplace-mongo)
    - Port: 27017 (mapped to 27018 on host)
 
 ## 🚀 Quick Start
@@ -137,34 +138,34 @@ See `services/api/app.py` for complete endpoint documentation.
 Pre-built images available on Docker Hub:
 
 ```bash
-# Pull and run API
-docker pull leoq0724/marketplace-api:latest
-docker run -p 5002:5001 leoq0724/marketplace-api:latest
+# Pull and run API (App Platform image)
+docker pull leoli120959/swap-hub-api:latest
+docker run -p 5000:5000 leoli120959/swap-hub-api:latest
 
 # Pull and run MongoDB
-docker pull leoq0724/marketplace-mongo:latest
-docker run -p 27018:27017 leoq0724/marketplace-mongo:latest
+docker pull leoli120959/marketplace-mongo:latest
+docker run -p 27018:27017 leoli120959/marketplace-mongo:latest
 ```
 
 Manual build:
 ```bash
-docker build -f services/api/Dockerfile -t leoq0724/marketplace-api:latest .
-docker build -f services/mongo/Dockerfile -t leoq0724/marketplace-mongo:latest services/mongo/
+docker build -f services/api/Dockerfile -t leoli120959/marketplace-api:latest .
+docker build -f services/mongo/Dockerfile -t leoli120959/marketplace-mongo:latest services/mongo/
 ```
 
 ## 🔄 CI/CD Pipeline
 
 GitHub Actions workflows trigger on push/PR to `main`:
 
-- **api.yml**: Tests API, builds/pushes Docker image, deploys to DigitalOcean
-- **mongo.yml**: Builds/pushes MongoDB image
+- **api.yml**: Tests API, builds/pushes Docker image, triggers DigitalOcean App Platform deploy (if DO secrets set)
+- **mongo.yml**: Builds/pushes MongoDB image, triggers DigitalOcean App Platform deploy (if DO secrets set)
+- **build-push.yml**: Builds/pushes `swap-hub-api` image for App Platform
 
 Required secrets in GitHub:
-- `DOCKERHUB_USERNAME` - Docker Hub account
-- `DOCKERHUB_TOKEN` - Docker Hub token
-- `DO_HOST` - DigitalOcean droplet IP
-- `DO_SSH_KEY` - SSH private key
-- `MONGO_URI` - Production MongoDB URI
+- `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` - Docker Hub creds
+- (Optional deploy) `DO_API_TOKEN`, `DO_APP_ID` - to trigger App Platform redeploy for API
+- (Optional deploy) `DO_MONGO_APP_ID` - to trigger Mongo-related App Platform redeploy
+- `MONGO_URI`, `MONGO_DB` - Production MongoDB connection
 
 ## 📁 Project Structure
 
