@@ -10,21 +10,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    # When imported as a package (tests, normal usage)
     from .db import Database
 except ImportError:  # pragma: no cover
-    # When executed as a standalone script (e.g., Docker CMD)
     from db import Database  # type: ignore
 
 
 def _find_root() -> Path:
-    """Locate a directory containing static/ and templates/."""
+    """Return the directory that contains static/ and templates/."""
     here = Path(__file__).resolve()
-    for cand in [
-        here.parent,
-        here.parent.parent,
-        here.parent.parent.parent,
-    ]:
+    for cand in [here.parent, here.parent.parent, here.parent.parent.parent]:
         if (cand / "static").exists() and (cand / "templates").exists():
             return cand
     return here.parent
@@ -39,6 +33,28 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "marketplace")
 
+BROOKLYN_KEYWORDS = {
+    "dibner",
+    "metrotech",
+    "rogers hall",
+    "lipton",
+    "clark street",
+    "tandon",
+    "brooklyn",
+}
+
+WSQ_KEYWORDS = {
+    "washington square",
+    "bobst",
+    "kimmel",
+    "palladium",
+    "third avenue north",
+    "weinstein",
+    "washington mews",
+    "union square",
+    "astor place",
+}
+
 
 def create_app(testing: bool = False):
     app = Flask(__name__, static_folder=str(STATIC_DIR), template_folder=str(TEMPLATES_DIR))
@@ -48,25 +64,33 @@ def create_app(testing: bool = False):
     if not testing:
         db.seed_if_empty()
 
-    # ---- In-memory stores for lightweight demo behaviors ----
+    # In-memory demo stores
     users = {}
     auth_tokens = {}
     favorites = {}
     reports = []
     communities = [
-        {"id": 1, "name": "NYU Tandon", "type": "university"},
+        {"id": 1, "name": "NYU Brooklyn Campus", "type": "university"},
         {"id": 2, "name": "NYU Washington Square", "type": "university"},
-        {"id": 3, "name": "Nearby 3km", "type": "nearby"},
     ]
 
     def _next_id(collection):
         return str(len(collection) + 1)
 
     def _normalize_optional(value):
-        """Normalize optional values; treat None-like strings as missing."""
         if value in (None, "", "None", "null", "undefined"):
             return None
         return value
+
+    def _infer_community_id(meetup_point: str):
+        if not meetup_point:
+            return None
+        lower = meetup_point.lower()
+        if any(key in lower for key in BROOKLYN_KEYWORDS):
+            return "1"
+        if any(key in lower for key in WSQ_KEYWORDS):
+            return "2"
+        return None
 
     @app.route("/api/health")
     @app.route("/health")
@@ -74,6 +98,7 @@ def create_app(testing: bool = False):
         return jsonify({"status": "ok"}), 200
 
     # ---- Communities ----
+
     @app.route("/api/communities", methods=["GET"])
     def get_communities():
         return jsonify(communities), 200
@@ -86,6 +111,7 @@ def create_app(testing: bool = False):
         return jsonify({"error": "Not found"}), 404
 
     # ---- Listings ----
+
     @app.route("/api/listings", methods=["GET", "POST"])
     def listings():
         if request.method == "GET":
@@ -97,7 +123,6 @@ def create_app(testing: bool = False):
             items = db.list_items(filters)
             return jsonify(items), 200
 
-        # POST create listing (JSON or multipart)
         images = []
         if request.form:
             form = request.form
@@ -109,7 +134,6 @@ def create_app(testing: bool = False):
             user_id = form.get("user_id") or "1"
             course_code = form.get("course_code")
             community_id = form.get("community_id")
-            # Handle uploaded images if present
             if request.files:
                 for f in request.files.getlist("images"):
                     if not f or f.filename == "":
@@ -130,6 +154,11 @@ def create_app(testing: bool = False):
             course_code = payload.get("course_code")
             community_id = payload.get("community_id")
 
+        if not community_id:
+            community_id = _infer_community_id(meetup_point)
+        if community_id:
+            community_id = str(community_id)
+
         if not title or price is None:
             return jsonify({"error": "title and price are required"}), 400
         try:
@@ -137,7 +166,11 @@ def create_app(testing: bool = False):
         except (TypeError, ValueError):
             return jsonify({"error": "price must be a number"}), 400
 
-        user_info = users.get(user_id) or {"id": user_id, "nickname": "Seller", "verify_status": "email_verified"}
+        user_info = users.get(user_id) or {
+            "id": user_id,
+            "nickname": "Seller",
+            "verify_status": "email_verified",
+        }
         listing = db.create_item(
             title=title,
             price=price_val,
@@ -170,7 +203,8 @@ def create_app(testing: bool = False):
         items = db.list_items({"user_id": user_id})
         return jsonify(items), 200
 
-    # ---- Auth (demo-grade) ----
+    # ---- Auth (demo) ----
+
     @app.route("/api/auth/register", methods=["POST"])
     def register():
         payload = request.get_json(force=True, silent=True) or {}
@@ -180,6 +214,12 @@ def create_app(testing: bool = False):
         community_id = payload.get("community_id")
         if not email or not password:
             return jsonify({"error": "email and password required"}), 400
+
+        if not email.endswith("@nyu.edu"):
+            return jsonify({"error": "email must end with nyu.edu"}), 400
+
+        if any(u.get("email") == email for u in users.values()):
+            return jsonify({"error": "email already registered"}), 400
 
         user_id = _next_id(users)
         user = {
@@ -228,11 +268,11 @@ def create_app(testing: bool = False):
             upload.save(dest)
             user["avatar"] = f"/static/uploads/{unique_name}"
         else:
-            # Fallback placeholder
             user["avatar"] = f"https://placehold.co/120x120?text={user.get('nickname','User')}"
         return jsonify({"user": {k: v for k, v in user.items() if k != "password"}}), 200
 
     # ---- Favorites (in-memory) ----
+
     @app.route("/api/favorites", methods=["POST"])
     def add_favorite():
         payload = request.get_json(force=True, silent=True) or {}
@@ -261,7 +301,8 @@ def create_app(testing: bool = False):
         items = [i for i in items if i]
         return jsonify({"favorites": items, "favorite_ids": fav_ids}), 200
 
-    # ---- Threads & messages (Mongo-backed) ----
+    # ---- Threads & messages ----
+
     @app.route("/api/threads", methods=["POST"])
     def create_thread():
         payload = request.get_json(force=True, silent=True) or {}
@@ -280,12 +321,10 @@ def create_app(testing: bool = False):
         seller_id = str(seller_id)
         listing_id = str(listing_id)
 
-        # Ensure listing exists
         listing = db.get_item(listing_id)
         if not listing:
             return jsonify({"error": "listing not found"}), 404
 
-        # Optional: ensure seller matches listing owner if present
         listing_seller_id = str(listing.get("user_id") or "")
         if listing_seller_id and listing_seller_id != seller_id:
             return jsonify({"error": "seller_id does not match listing owner"}), 400
@@ -303,14 +342,31 @@ def create_app(testing: bool = False):
 
     @app.route("/api/threads/<thread_id>/messages", methods=["GET"])
     def get_thread_messages(thread_id):
+        """
+        Optional query param: user_id – if provided, mark messages to this user as read.
+        """
         thread = db.get_thread(thread_id)
         if not thread:
             return jsonify({"error": "thread not found"}), 404
-        thread_messages = db.list_messages_for_thread(thread_id)
-        return jsonify(thread_messages), 200
+
+        user_id = request.args.get("user_id")
+
+        if user_id and user_id not in (thread.get("buyer_id"), thread.get("seller_id")):
+            return jsonify({"error": "user is not part of this thread"}), 403
+
+        msgs = db.list_messages_for_thread(thread_id)
+
+        if user_id:
+            db.mark_thread_messages_read(thread_id, user_id)
+
+        return jsonify(msgs), 200
 
     @app.route("/api/messages", methods=["POST"])
     def send_message():
+        """
+        Body: { thread_id, sender_id, content }.
+        Receiver is inferred from thread.
+        """
         payload = request.get_json(force=True, silent=True) or {}
         raw_thread_id = payload.get("thread_id")
         raw_sender_id = payload.get("sender_id")
@@ -329,19 +385,29 @@ def create_app(testing: bool = False):
         if not thread:
             return jsonify({"error": "thread not found"}), 404
 
-        # Sender must be part of the thread
         if sender_id not in (thread["buyer_id"], thread["seller_id"]):
             return jsonify({"error": "sender is not part of this thread"}), 403
 
-        message = db.create_message(thread_id=thread_id, sender_id=sender_id, content=content)
+        if sender_id == thread["buyer_id"]:
+            receiver_id = thread["seller_id"]
+        else:
+            receiver_id = thread["buyer_id"]
+
+        message = db.create_message(
+            thread_id=thread_id,
+            sender_id=sender_id,
+            receiver_id=receiver_id,
+            content=content,
+        )
         return jsonify(message), 201
 
     @app.route("/api/messages/<user_id>/unread-count", methods=["GET"])
     def unread_count(user_id):
-        # Demo: no unread tracking
-        return jsonify({"unread": 0}), 200
+        count = db.count_unread_messages(str(user_id))
+        return jsonify({"unread": count}), 200
 
-    # ---- Reports & stats (placeholders) ----
+    # ---- Reports & stats ----
+
     @app.route("/api/reports", methods=["POST", "GET"])
     def handle_reports():
         if request.method == "POST":
@@ -384,8 +450,15 @@ def create_app(testing: bool = False):
         except (TypeError, ValueError):
             return jsonify({"error": "price must be a number"}), 400
 
-        item = db.create_item(title=name, name=name, price=price_val, description=payload.get("description", ""))
+        item = db.create_item(
+            title=name,
+            name=name,
+            price=price_val,
+            description=payload.get("description", ""),
+        )
         return jsonify(item), 201
+
+    # ---- Pages ----
 
     @app.route("/")
     def index():

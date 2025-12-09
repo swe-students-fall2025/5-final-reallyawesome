@@ -27,16 +27,19 @@ const UI = {
             return;
         }
 
-        const options = communities.map(c => `
+        const options = [
+            '<option value="">All locations</option>',
+            ...communities.map(c => `
             <option value="${c.id}">${c.name}</option>
-        `).join('');
+            `)
+        ].join('');
 
         select.innerHTML = options;
         select.disabled = false;
 
         const targetValue = typeof activeId !== 'undefined' && activeId !== null
             ? String(activeId)
-            : String(communities[0].id);
+            : '';
 
         select.value = targetValue;
     },
@@ -258,6 +261,11 @@ const UI = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+        const sellerAvatar = listing.user && listing.user.avatar ? listing.user.avatar : null;
+        const sellerInitial = sellerNameRaw.trim().charAt(0).toUpperCase() || 'S';
+        const sellerAvatarMarkup = sellerAvatar
+            ? `<img src="${sellerAvatar}" alt="${safeSellerName}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #e5e7eb;">`
+            : `<div style="width:28px;height:28px;border-radius:50%;background:#e0e7ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:1px solid #c7d2fe;">${sellerInitial}</div>`;
         const meetupPoint = listing.meetup_point || 'Meetup TBD';
         const images = hasImages ? listing.images.filter(Boolean) : (primaryImage ? [primaryImage] : []);
         const carouselId = `detailCarousel-${listingIdSafe}`;
@@ -327,7 +335,7 @@ const UI = {
             </div>
             <div style="margin-bottom: 20px;">
                 <strong>Seller:</strong> 
-                <span class="seller-name detail">👤 ${safeSellerName}</span>
+                <span class="seller-name detail">${safeSellerName}</span>
             </div>
             <button class="submit-btn" data-action="contact-seller" data-listing-id="${listingIdAttr}">
                 💬 Contact seller
@@ -453,16 +461,46 @@ const UI = {
      * Show error message
      */
     showError(message) {
-        alert(message);
+        renderToast(message, 'error');
     },
     
     /**
      * 
      */
     showSuccess(message) {
-        alert(message);
+        renderToast(message, 'success');
     }
 };
+
+/**
+ * Lightweight toast notifications (top-right)
+ */
+function renderToast(message, type = 'info') {
+    if (typeof document === 'undefined') return;
+
+    let container = document.getElementById('globalToastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'globalToastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast-bubble ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    // trigger animation
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 250);
+    }, 2800);
+}
 
 // 
 if (typeof module !== 'undefined' && module.exports) {

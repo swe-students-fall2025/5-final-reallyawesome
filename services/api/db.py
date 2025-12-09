@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
@@ -19,7 +20,7 @@ class _InMemoryCursor:
     def __init__(self, docs):
         self.docs = docs
 
-    def sort(self, key, direction):  # direction ignored other than sign
+    def sort(self, key, direction):
         reverse = direction == -1
         return _InMemoryCursor(sorted(self.docs, key=lambda d: d.get(key), reverse=reverse))
 
@@ -59,6 +60,17 @@ class _InMemoryCollection:
     def estimated_document_count(self):
         return len(self._docs)
 
+    def update_many(self, filter_query, update):
+        """Simple in-memory update_many with $set only."""
+        matched = 0
+        for doc in self._docs:
+            if self._matches(doc, filter_query):
+                if "$set" in update:
+                    for k, v in update["$set"].items():
+                        doc[k] = v
+                matched += 1
+        return type("UpdateResult", (), {"matched_count": matched, "modified_count": matched})
+
     def _matches(self, doc, query):
         for key, value in query.items():
             if isinstance(value, dict) and "$regex" in value:
@@ -79,13 +91,11 @@ class _InMemoryCollection:
 
 class _InMemoryDB:
     def __init__(self):
-        # Collections used by the app when running with an in-memory mock
         self.items = _InMemoryCollection()
         self.threads = _InMemoryCollection()
         self.messages = _InMemoryCollection()
 
     def __getitem__(self, _name):
-        # Database name is ignored for the in-memory mock
         return self
 
 
@@ -96,7 +106,6 @@ class Database:
             if mongomock:
                 self._client = mongomock.MongoClient()
             else:
-                # Fallback to lightweight in-memory collections for CI/dev
                 self._client = _InMemoryDB()
         else:
             self._client = MongoClient(uri)
@@ -104,30 +113,28 @@ class Database:
         self._ensure_indexes()
 
     def _ensure_indexes(self):
-        # Basic index on items name for simple search
         self._db.items.create_index("name")
-        # These can be no-ops for the in-memory implementation
         if hasattr(self._db, "threads"):
             self._db.threads.create_index("buyer_id")
             self._db.threads.create_index("seller_id")
         if hasattr(self._db, "messages"):
             self._db.messages.create_index("thread_id")
+            self._db.messages.create_index("receiver_id")
+            self._db.messages.create_index("is_read")
 
     # ---------- Listings ----------
 
     def list_items(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        """Return items sorted by newest first, applying optional filters."""
         filters = filters or {}
         query: Dict[str, Any] = {}
 
-        if "community_id" in filters and filters["community_id"]:
+        if filters.get("community_id"):
             query["community_id"] = filters["community_id"]
-        if "category" in filters and filters["category"]:
+        if filters.get("category"):
             query["category"] = filters["category"]
-        if "user_id" in filters and filters["user_id"]:
+        if filters.get("user_id"):
             query["user_id"] = filters["user_id"]
-        if "q" in filters and filters["q"]:
-            # Simple text search on title
+        if filters.get("q"):
             query["title"] = {"$regex": filters["q"], "$options": "i"}
 
         items: List[Dict[str, Any]] = []
@@ -187,7 +194,11 @@ class Database:
                         "category": "other",
                         "meetup_point": "Campus Center",
                         "user_id": "1",
-                        "user": {"id": "1", "nickname": "Demo Seller", "verify_status": "email_verified"},
+                        "user": {
+                            "id": "1",
+                            "nickname": "Demo Seller",
+                            "verify_status": "email_verified",
+                        },
                     },
                     {
                         "title": "Notebook",
@@ -198,12 +209,16 @@ class Database:
                         "category": "textbook",
                         "meetup_point": "Library",
                         "user_id": "2",
-                        "user": {"id": "2", "nickname": "Student B", "verify_status": "phone_verified"},
+                        "user": {
+                            "id": "2",
+                            "nickname": "Student B",
+                            "verify_status": "phone_verified",
+                        },
                     },
                 ]
             )
 
-     # ---------- Threads ----------
+    # ---------- Threads ----------
 
     def create_thread(self, buyer_id: str, seller_id: str, listing_id: str) -> Dict[str, Any]:
         now = datetime.utcnow()
@@ -219,7 +234,6 @@ class Database:
         return doc
 
     def get_thread(self, thread_id: str) -> Optional[Dict[str, Any]]:
-        """Fetch a single thread by its id."""
         try:
             doc = self._db.threads.find_one({"_id": ObjectId(thread_id)})
         except Exception:
@@ -231,30 +245,28 @@ class Database:
         return doc
 
     def list_threads_for_user(self, user_id: str) -> List[Dict[str, Any]]:
-        """Return all threads where the user is buyer or seller, newest first."""
-        # Keep the query simple so it works with both MongoDB and the in-memory mock
         docs = list(self._db.threads.find())
         filtered = [
             dict(doc)
             for doc in docs
             if doc.get("buyer_id") == user_id or doc.get("seller_id") == user_id
         ]
-        # Normalize id and sort by created_at descending
         for doc in filtered:
             doc["id"] = str(doc.pop("_id", ""))
         filtered.sort(key=lambda d: d.get("created_at", ""), reverse=True)
         return filtered
 
-
     # ---------- Messages ----------
 
-    def create_message(self, thread_id: str, sender_id: str, content: str) -> Dict[str, Any]:
+    def create_message(self, thread_id: str, sender_id: str, receiver_id: str, content: str) -> Dict[str, Any]:
         now = datetime.utcnow()
         doc: Dict[str, Any] = {
             "thread_id": thread_id,
             "sender_id": sender_id,
+            "receiver_id": receiver_id,
             "content": content,
             "created_at": now.isoformat(),
+            "is_read": False,
         }
         result = self._db.messages.insert_one(doc)
         doc.pop("_id", None)
@@ -262,10 +274,22 @@ class Database:
         return doc
 
     def list_messages_for_thread(self, thread_id: str) -> List[Dict[str, Any]]:
-        """Return all messages for a thread, oldest first."""
         messages: List[Dict[str, Any]] = []
         for doc in self._db.messages.find({"thread_id": thread_id}).sort("created_at", 1):
             doc = dict(doc)
             doc["id"] = str(doc.pop("_id", ""))
+            if "is_read" not in doc:
+                doc["is_read"] = False
             messages.append(doc)
         return messages
+
+    def count_unread_messages(self, user_id: str) -> int:
+        query = {"receiver_id": user_id, "is_read": False}
+        count = 0
+        for _ in self._db.messages.find(query):
+            count += 1
+        return count
+
+    def mark_thread_messages_read(self, thread_id: str, user_id: str) -> None:
+        query = {"thread_id": thread_id, "receiver_id": user_id, "is_read": False}
+        self._db.messages.update_many(query, {"$set": {"is_read": True}})

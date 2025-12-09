@@ -5,20 +5,18 @@
  * Handles the flow from clicking contact seller to sending message
  */
 
-// ===== State management (dialog-scoped to avoid clashing with messages page) =====
+// ===== State management =====
 let dialogThreadId = null;
 let dialogThread = null; // { threadId, listing, buyerId, sellerId, buyerNickname, sellerNickname }
 let messageRefreshInterval = null;
 
 /**
  * Contact seller - Main entry
- * Triggered when user clicks the contact seller button
  */
 async function contactSeller(listingId) {
     try {
         console.log('Contact seller...', { listingId });
         
-        // 1. Fetch listing info and current user
         const listing = await getListing(listingId);
         const currentUser = getCurrentUser();
         
@@ -37,14 +35,11 @@ async function contactSeller(listingId) {
             return;
         }
         
-        // 2. Prevent contacting yourself
         if (listing.user.id === currentUser.id) {
             showError('Cannot contact yourself');
             return;
         }
         
-        // 3. Create or get thread
-        // Try to reuse existing conversation for this buyer/seller/listing trio
         const existingThreadId = await findExistingThreadId(currentUser.id, listing.user.id, listingId);
         let threadId = existingThreadId;
 
@@ -64,7 +59,6 @@ async function contactSeller(listingId) {
         
         console.log('Using thread ID:', threadId);
         
-        // 4. Open message dialog (keep detail modal open in background)
         await openMessageDialog(threadId, listing, listing.user);
         
         console.log('Contact seller succeeded');
@@ -98,7 +92,7 @@ async function findExistingThreadId(buyerId, sellerId, listingId) {
 }
 
 /**
- * Create or get thread
+ * Create thread
  */
 async function createThread(buyerId, sellerId, listingId) {
     try {
@@ -128,9 +122,6 @@ async function createThread(buyerId, sellerId, listingId) {
 
 // ===== Message dialog management =====
 
-/**
- * Open message dialog
- */
 async function openMessageDialog(threadId, listing, seller) {
     try {
         const currentUser = getCurrentUser();
@@ -144,7 +135,6 @@ async function openMessageDialog(threadId, listing, seller) {
             sellerNickname: seller?.nickname || null
         };
         
-        // Fetch listing info from API if missing
         if ((!listing || !listing.meetup_point || !listing.category) && listing?.id) {
             try {
                 const freshListing = await getListing(listing.id);
@@ -157,23 +147,18 @@ async function openMessageDialog(threadId, listing, seller) {
             }
         }
         
-        // 1. Update dialog title
         const dialogTitle = document.getElementById('messageDialogTitle');
         if (dialogTitle) {
             const sellerName = getChatPartnerNickname();
             dialogTitle.textContent = sellerName ? `Chat with ${sellerName}` : 'Chat';
         }
         
-        // 2. Update listing info
         renderProductInfo(dialogThread.listing || listing);
         
-        // 3. Load messages
         await loadDialogMessages(threadId);
         
-        // 4. Open dialog
         openModal('messageDialog');
         
-        // 5. Focus input
         setTimeout(() => {
             const input = document.getElementById('messageInput');
             if (input) input.focus();
@@ -185,9 +170,6 @@ async function openMessageDialog(threadId, listing, seller) {
     }
 }
 
-/**
- * Render listing info
- */
 function renderProductInfo(listing) {
     const productInfo = document.getElementById('messageProductInfo');
     if (!productInfo) return;
@@ -195,14 +177,18 @@ function renderProductInfo(listing) {
         productInfo.innerHTML = '';
         return;
     }
-    
+    const images = Array.isArray(listing.images) ? listing.images.filter(Boolean) : [];
+    const primaryImage = images.length > 0 ? images[0] : null;
     const placeholderColor = getColorByCategory(listing.category);
-    
+    const thumb = primaryImage
+        ? `<img src="${primaryImage}" alt="${listing.title || 'Listing'}" style="width:64px;height:64px;border-radius:16px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.08);">`
+        : `<div class="message-product-thumb" style="background:${placeholderColor};">
+                ${(listing.title || '').substring(0, 10)}
+           </div>`;
+
     productInfo.innerHTML = `
         <div class="message-product-card">
-            <div class="message-product-thumb" style="background:${placeholderColor};">
-                ${(listing.title || '').substring(0, 10)}
-            </div>
+            ${thumb}
             <div class="message-product-body">
                 <div class="message-product-title">${listing.title}</div>
                 <div class="message-product-price">$${listing.price}</div>
@@ -212,9 +198,6 @@ function renderProductInfo(listing) {
     `;
 }
 
-/**
- * Get color by category
- */
 function getColorByCategory(category) {
     const colors = {
         textbook: '#667eea',
@@ -227,9 +210,6 @@ function getColorByCategory(category) {
     return colors[category] || '#9ca3af';
 }
 
-/**
- * Close message dialog
- */
 function closeMessageDialog() {
     dialogThreadId = null;
     dialogThread = null;
@@ -242,9 +222,6 @@ function closeMessageDialog() {
 
 // ===== Message loading and display =====
 
-/**
- * Load messages
- */
 async function loadDialogMessages(threadId) {
     try {
         const messagesContainer = document.getElementById('messagesContainer');
@@ -253,39 +230,49 @@ async function loadDialogMessages(threadId) {
             return;
         }
         
-        messagesContainer.innerHTML = '<div class="loading" style="text-align: center; color: #9ca3af; padding: 20px;">Loading messages...</div>';
+        messagesContainer.innerHTML =
+            '<div class="loading" style="text-align: center; color: #9ca3af; padding: 20px;">Loading messages...</div>';
         
-        const response = await fetch(`/api/threads/${threadId}/messages`);
+        const currentUser = getCurrentUser();
+        const userId = currentUser && currentUser.id ? currentUser.id : null;
+        const url = userId
+            ? `/api/threads/${threadId}/messages?user_id=${encodeURIComponent(userId)}`
+            : `/api/threads/${threadId}/messages`;
+        
+        const response = await fetch(url);
         
         if (!response.ok) {
             throw new Error('Failed to load messages');
         }
         
         const messages = await response.json();
-        console.log(':', messages);
+        console.log('Messages:', messages);
         
         if (!messages || messages.length === 0) {
-            messagesContainer.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 20px;">Start a new conversation</div>';
+            messagesContainer.innerHTML =
+                '<div style="text-align: center; color: #6b7280; padding: 20px;">Start a new conversation</div>';
         } else {
             messagesContainer.innerHTML = messages.map(msg => renderMessage(msg)).join('');
             
-            // 
             setTimeout(() => {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }, 100);
+        }
+
+        // After marking as read, refresh unread badge
+        if (typeof refreshUnreadBadge === 'function') {
+            refreshUnreadBadge();
         }
     } catch (error) {
         console.error('Failed to load messages:', error);
         const messagesContainer = document.getElementById('messagesContainer');
         if (messagesContainer) {
-            messagesContainer.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 20px;">Failed to load messages</div>';
+            messagesContainer.innerHTML =
+                '<div style="text-align: center; color: #ef4444; padding: 20px;">Failed to load messages</div>';
         }
     }
 }
 
-/**
- * Render single message
- */
 function renderMessage(message) {
     const currentUser = getCurrentUser();
     const currentUserId = currentUser && currentUser.id ? currentUser.id : null;
@@ -307,17 +294,13 @@ function renderMessage(message) {
     `;
 }
 
-// =====  =====
+// ===== Send message =====
 
-/**
- * Send message
- */
 async function sendDialogMessage() {
     try {
         const input = document.getElementById('messageInput');
         const content = input.value.trim();
         
-        // 1. Validate message content
         if (!content) {
             showError('Please enter message content');
             return;
@@ -346,12 +329,12 @@ async function sendDialogMessage() {
             return;
         }
         
-        // 2. ，Show loading status
         const sendBtn = document.getElementById('messageSendBtn');
-        sendBtn.disabled = true;
-        sendBtn.textContent = 'Sending...';
+        if (sendBtn) {
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Sending...';
+        }
         
-        // 3. Send message
         console.log('Sending message...', {
             thread_id: dialogThreadId,
             sender_id: currentUser.id,
@@ -376,35 +359,29 @@ async function sendDialogMessage() {
             throw new Error(errorData.error || 'Send failed');
         }
         
-        const result = await response.json();
-        console.log('Message sent successfully:', result);
+        await response.json();
         
-        // 4. 
         input.value = '';
         
-        // 5. Reload messages
         await loadDialogMessages(dialogThreadId);
         
-        // 6. 
-        sendBtn.disabled = false;
-        sendBtn.textContent = 'Send';
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send';
+        }
         
     } catch (error) {
         console.error('Failed to send message:', error);
         showError('Failed to send message: ' + error.message);
         
-        // 
         const sendBtn = document.getElementById('messageSendBtn');
         if (sendBtn) {
             sendBtn.disabled = false;
-            sendBtn.textContent = '';
+            sendBtn.textContent = 'Send';
         }
     }
 }
 
-/**
- * Get chat object ID
- */
 function getChatPartnerId() {
     if (!dialogThread) return null;
     const currentUser = getCurrentUser();
@@ -419,9 +396,6 @@ function getChatPartnerId() {
     return null;
 }
 
-/**
- * Get chat object name
- */
 function getChatPartnerNickname() {
     if (!dialogThread) return null;
     if (dialogThread.sellerNickname) return dialogThread.sellerNickname;
@@ -431,11 +405,8 @@ function getChatPartnerNickname() {
     return 'Seller';
 }
 
-// ===== Message list page =====
+// ===== Message list page (optional) =====
 
-/**
- * Load messages page (all threads)
- */
 async function loadMessagesPage() {
     try {
         const currentUser = getCurrentUser();
@@ -447,11 +418,13 @@ async function loadMessagesPage() {
         }
         
         if (!currentUser || !currentUser.id) {
-            threadList.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 40px;">Please log in to view messages</div>';
+            threadList.innerHTML =
+                '<div style="text-align: center; color: #6b7280; padding: 40px;">Please log in to view messages</div>';
             return;
         }
         
-        threadList.innerHTML = '<div style="text-align: center; color: #9ca3af; padding: 40px;">Loading...</div>';
+        threadList.innerHTML =
+            '<div style="text-align: center; color: #9ca3af; padding: 40px;">Loading...</div>';
         
         const response = await fetch(`/api/threads/${currentUser.id}`);
         
@@ -460,14 +433,14 @@ async function loadMessagesPage() {
         }
         
         const threads = await response.json();
-        console.log(':', threads);
+        console.log('Threads:', threads);
         
         if (!threads || threads.length === 0) {
-            threadList.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 40px;">💬<br>No messages</div>';
+            threadList.innerHTML =
+                '<div style="text-align: center; color: #6b7280; padding: 40px;">💬<br>No messages</div>';
             return;
         }
         
-        // Enrich threads with listing info so the UI has data to show
         const enrichedThreads = await Promise.all(
             threads.map(async (thread) => {
                 let listing = null;
@@ -486,14 +459,12 @@ async function loadMessagesPage() {
         console.error('Load messages:', error);
         const threadList = document.getElementById('threadList');
         if (threadList) {
-            threadList.innerHTML = '<div style="text-align: center; color: #ef4444; padding: 40px;">Load messages</div>';
+            threadList.innerHTML =
+                '<div style="text-align: center; color: #ef4444; padding: 40px;">Load messages failed</div>';
         }
     }
 }
 
-/**
- * Render thread item
- */
 function renderThreadItem(thread) {
     const currentUser = getCurrentUser();
     const isBuyer = currentUser && currentUser.id === thread.buyer_id;
@@ -515,21 +486,16 @@ function renderThreadItem(thread) {
     `;
 }
 
-/**
- * Open thread from message list
- */
 async function openThreadFromList(threadId) {
     try {
         const currentUser = getCurrentUser();
         if (!currentUser || !currentUser.id) {
-            showError('Login');
+            showError('Please log in');
             return;
         }
         
         dialogThreadId = threadId;
         
-        // 
-        // We don't have a single-thread GET endpoint, so reuse the threads list to find it
         const allThreadsResp = await fetch(`/api/threads/${currentUser.id}`);
         if (!allThreadsResp.ok) {
             throw new Error('Failed to fetch threads');
@@ -540,7 +506,6 @@ async function openThreadFromList(threadId) {
             throw new Error('Thread not found');
         }
         
-        // Fetch listing info for richer display
         let listingData = null;
         try {
             listingData = await getListing(thread.listing_id);
@@ -563,14 +528,12 @@ async function openThreadFromList(threadId) {
             sellerNickname: thread.seller_nickname
         };
         
-        // 
         const dialogTitle = document.getElementById('messageDialogTitle');
         if (dialogTitle) {
             const sellerName = thread.seller_nickname || 'Seller';
             dialogTitle.textContent = `Chat with ${sellerName}`;
         }
         
-        // Update listing info
         const productInfo = document.getElementById('messageProductInfo');
         if (productInfo) {
             const listing = dialogThread.listing || {};
@@ -588,10 +551,8 @@ async function openThreadFromList(threadId) {
             `;
         }
 
-        // 
         await loadDialogMessages(threadId);
         
-        // Open dialog
         openModal('messageDialog');
         
     } catch (error) {
@@ -600,18 +561,13 @@ async function openThreadFromList(threadId) {
     }
 }
 
-// =====  =====
+// ===== Helpers =====
 
-/**
- * Get listing info
- */
 async function getListing(listingId) {
     try {
-        // Check local state first
         const currentState = getState();
         let listing = currentState.listings.find(l => l.id === listingId);
         
-        // Fetch from API if not local
         if (!listing) {
             const response = await fetch(`/api/listings/${listingId}`);
             if (!response.ok) {
@@ -627,29 +583,22 @@ async function getListing(listingId) {
     }
 }
 
-/**
- * Format time
- */
 function formatTime(dateString) {
     try {
         const date = new Date(dateString);
         const now = new Date();
         const diff = now - date;
         
-        // Less than a minute
         if (diff < 60000) {
             return 'Just now';
         }
-        // 1
         if (diff < 3600000) {
             return Math.floor(diff / 60000) + ' minutes ago';
         }
-        // 1
         if (diff < 86400000) {
             return Math.floor(diff / 3600000) + ' hours ago';
         }
         
-        // Show date and time
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${date.getMonth() + 1}/${date.getDate()} ${hours}:${minutes}`;
@@ -659,31 +608,21 @@ function formatTime(dateString) {
     }
 }
 
-/**
- * Escape HTML
- */
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
-/**
- * Show error message
- */
 function showError(message) {
-    alert('❌ ' + message);
+    if (typeof UI !== 'undefined' && UI.showError) {
+        UI.showError(message);
+    }
 }
 
-// =====  =====
-
-/**
- * Initialize contact seller feature
- */
 function initContactSeller() {
     console.log('✓ Contact seller initialized');
     
-    // Add Enter shortcut to message input
     const messageInput = document.getElementById('messageInput');
     if (messageInput) {
         messageInput.addEventListener('keypress', function(e) {
@@ -695,14 +634,12 @@ function initContactSeller() {
     }
 }
 
-// Initialize on page load
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initContactSeller);
 } else {
     initContactSeller();
 }
 
-// Expose entry points for inline handlers
 if (typeof window !== 'undefined') {
     window.contactSeller = contactSeller;
     window.closeMessageDialog = closeMessageDialog;

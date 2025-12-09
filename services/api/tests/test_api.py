@@ -161,7 +161,7 @@ def test_register(client):
     resp = client.post(
         "/api/auth/register",
         json={
-            "email": "test@example.com",
+            "email": "test@nyu.edu",
             "password": "password123",
             "nickname": "TestUser",
         },
@@ -170,11 +170,11 @@ def test_register(client):
     data = resp.get_json()
     assert "token" in data
     assert "user" in data
-    assert data["user"]["email"] == "test@example.com"
+    assert data["user"]["email"] == "test@nyu.edu"
 
 
 def test_register_validation(client):
-    resp = client.post("/api/auth/register", json={"email": "test@example.com"})
+    resp = client.post("/api/auth/register", json={"email": "test@nyu.edu"})
     assert resp.status_code == 400
     resp = client.post("/api/auth/register", json={"password": "password123"})
     assert resp.status_code == 400
@@ -184,7 +184,7 @@ def test_login(client):
     client.post(
         "/api/auth/register",
         json={
-            "email": "login@example.com",
+            "email": "login@nyu.edu",
             "password": "password123",
             "nickname": "LoginUser",
         },
@@ -193,7 +193,7 @@ def test_login(client):
     resp = client.post(
         "/api/auth/login",
         json={
-            "email": "login@example.com",
+            "email": "login@nyu.edu",
             "password": "password123",
         },
     )
@@ -207,7 +207,7 @@ def test_login_invalid_credentials(client):
     resp = client.post(
         "/api/auth/login",
         json={
-            "email": "wrong@example.com",
+            "email": "wrong@nyu.edu",
             "password": "wrongpassword",
         },
     )
@@ -218,7 +218,7 @@ def test_get_user(client):
     register_resp = client.post(
         "/api/auth/register",
         json={
-            "email": "user@example.com",
+            "email": "user@nyu.edu",
             "password": "password123",
             "nickname": "TestUser",
         },
@@ -240,7 +240,7 @@ def test_upload_avatar(client):
     register_resp = client.post(
         "/api/auth/register",
         json={
-            "email": "avatar@example.com",
+            "email": "avatar@nyu.edu",
             "password": "password123",
             "nickname": "AvatarUser",
         },

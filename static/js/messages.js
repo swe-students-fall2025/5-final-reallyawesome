@@ -39,7 +39,11 @@ async function apiGetThreadList() {
 }
 
 async function apiGetMessages(threadId) {
-    const res = await fetch(`/api/threads/${threadId}/messages`);
+    const userId = getCurrentUserId();
+    const url = userId
+        ? `/api/threads/${threadId}/messages?user_id=${encodeURIComponent(userId)}`
+        : `/api/threads/${threadId}/messages`;
+    const res = await fetch(url);
     if (!res.ok) {
         throw new Error("Failed to load messages");
     }
@@ -72,13 +76,17 @@ async function apiSendMessage(threadId, content) {
 // ================================
 
 function showThreadListPage() {
-    document.getElementById("threadListPage").style.display = "block";
-    document.getElementById("chatPage").style.display = "none";
+    const listPage = document.getElementById("threadListPage");
+    const chatPage = document.getElementById("chatPage");
+    if (listPage) listPage.style.display = "block";
+    if (chatPage) chatPage.style.display = "none";
 }
 
 function showChatPage() {
-    document.getElementById("threadListPage").style.display = "none";
-    document.getElementById("chatPage").style.display = "block";
+    const listPage = document.getElementById("threadListPage");
+    const chatPage = document.getElementById("chatPage");
+    if (listPage) listPage.style.display = "none";
+    if (chatPage) chatPage.style.display = "block";
 }
 
 function backToThreads() {
@@ -133,13 +141,21 @@ async function loadThreadList() {
                 if (otherUserId) {
                     // Prefer listing owner name when available
                     if (listing?.user && String(listing.user.id) === String(otherUserId)) {
-                        otherUserName = listing.user.nickname || listing.user.name || listing.user.username || `User ${otherUserId}`;
+                        otherUserName =
+                            listing.user.nickname ||
+                            listing.user.name ||
+                            listing.user.username ||
+                            `User ${otherUserId}`;
                     } else if (userCache.has(otherUserId)) {
                         otherUserName = userCache.get(otherUserId);
                     } else {
                         try {
                             const userProfile = await API.getUser(otherUserId);
-                            otherUserName = userProfile.nickname || userProfile.name || userProfile.username || `User ${otherUserId}`;
+                            otherUserName =
+                                userProfile.nickname ||
+                                userProfile.name ||
+                                userProfile.username ||
+                                `User ${otherUserId}`;
                             userCache.set(otherUserId, otherUserName);
                         } catch (_err) {
                             otherUserName = `User ${otherUserId}`;
@@ -183,7 +199,6 @@ async function loadThreadList() {
 // Chat Page
 // ================================
 
-// 打开聊天界面
 async function openChat(threadId, productInfo) {
     currentThreadId = threadId;
 
@@ -192,9 +207,10 @@ async function openChat(threadId, productInfo) {
         let listing = productInfo || null;
         if (!listing) {
             try {
-                // Find thread and fetch listing info
                 const threads = await apiGetThreadList();
-                const match = threads.find(t => String(t.id) === String(threadId) || String(t.thread_id) === String(threadId));
+                const match = threads.find(
+                    t => String(t.id) === String(threadId) || String(t.thread_id) === String(threadId)
+                );
                 if (match) {
                     listing = await API.getListing(match.listing_id);
                 }
@@ -210,11 +226,15 @@ async function openChat(threadId, productInfo) {
     showChatPage();
 
     if (productInfo) {
-        document.getElementById("chatProductInfo").style.display = "block";
-        document.getElementById("chatProductTitle").innerText = productInfo.title || "";
-        document.getElementById("chatProductPrice").innerText = productInfo.price || "";
-        if (productInfo.thumbnail) {
-            document.getElementById("chatProductThumb").innerHTML =
+        const infoBox = document.getElementById("chatProductInfo");
+        if (infoBox) infoBox.style.display = "block";
+        const titleEl = document.getElementById("chatProductTitle");
+        const priceEl = document.getElementById("chatProductPrice");
+        const thumbEl = document.getElementById("chatProductThumb");
+        if (titleEl) titleEl.innerText = productInfo.title || "";
+        if (priceEl) priceEl.innerText = productInfo.price || "";
+        if (thumbEl && productInfo.thumbnail) {
+            thumbEl.innerHTML =
                 `<img src="${productInfo.thumbnail}" style="width:100%;height:100%;object-fit:cover;">`;
         }
     }
@@ -233,7 +253,7 @@ async function openChat(threadId, productInfo) {
     loadMessages();
 }
 
-// 加载消息
+// Load messages for currentThreadId
 async function loadMessages() {
     if (!currentThreadId) return;
 
@@ -242,12 +262,17 @@ async function loadMessages() {
         messages = await apiGetMessages(currentThreadId);
     } catch (error) {
         console.error("Failed to load messages:", error);
-        document.getElementById("messagesScroll").innerHTML = `
-            <div class="empty-placeholder">Failed to load messages</div>
-        `;
+        const scrollBox = document.getElementById("messagesScroll");
+        if (scrollBox) {
+            scrollBox.innerHTML = `
+                <div class="empty-placeholder">Failed to load messages</div>
+            `;
+        }
         return;
     }
+
     const box = document.getElementById("messagesScroll");
+    if (!box) return;
 
     box.innerHTML = "";
 
@@ -256,21 +281,25 @@ async function loadMessages() {
         div.className =
             "message-bubble " +
             (String(msg.sender_id) === String(currentUserId) ? "message-me" : "message-other");
-
         div.innerText = msg.content;
         box.appendChild(div);
     });
 
-    // 自动滚动到底部
     box.scrollTop = box.scrollHeight;
+
+    // Refresh unread badge after marking this thread as read
+    if (typeof refreshUnreadBadge === "function") {
+        refreshUnreadBadge();
+    }
 }
 
 // ================================
-// 发送消息
+// Send message
 // ================================
 
 async function sendMessage() {
     const input = document.getElementById("chatInput");
+    if (!input) return;
     const text = input.value.trim();
 
     if (!text || !currentThreadId) return;
@@ -283,21 +312,15 @@ async function sendMessage() {
         return;
     }
 
-    // 清空输入框
     input.value = "";
-
-    // 重新加载消息
     loadMessages();
 }
 
 // ================================
-// 初始化（当用户点击 Messages Tab 时调用）
+// Initialization
 // ================================
 
 function initMessagesPage() {
     showThreadListPage();
     loadThreadList();
 }
-
-// 你们已有 UI 切换函数里应该调用这个：
-// if (tab === "messages") initMessagesPage();
