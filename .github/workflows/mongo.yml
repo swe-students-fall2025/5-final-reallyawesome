@@ -48,9 +48,10 @@ jobs:
     env:
       DO_API_TOKEN: ${{ secrets.DO_API_TOKEN }}
       DO_MONGO_APP_ID: ${{ secrets.DO_MONGO_APP_ID }}
-    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && env.DO_API_TOKEN != '' && env.DO_MONGO_APP_ID != '' }}
+    if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
     steps:
       - name: Trigger DigitalOcean App Platform deployment (mongo)
+        if: ${{ env.DO_API_TOKEN != '' && env.DO_MONGO_APP_ID != '' }}
         run: |
           curl -X POST \
             -H "Authorization: Bearer ${DO_API_TOKEN}" \
