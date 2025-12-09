@@ -5,6 +5,9 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+load_dotenv()
 
 try:
     from .db import Database
@@ -27,7 +30,7 @@ TEMPLATES_DIR = ROOT_DIR / "templates"
 UPLOAD_DIR = STATIC_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 MONGO_DB = os.getenv("MONGO_DB", "marketplace")
 
 BROOKLYN_KEYWORDS = {
