@@ -5,13 +5,16 @@ services:
       context: .
       dockerfile: services/api/Dockerfile
     environment:
-      - MONGO_URI=mongodb://mongo:27017
-      - MONGO_DB=marketplace
+      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017}
+      - MONGO_DB=${MONGO_DB:-marketplace}
       - PORT=5001
     ports:
       - "5002:5001"
     depends_on:
       - mongo
+    # Uncomment the line below and comment out 'depends_on: mongo' if using MongoDB Atlas
+    # (no local mongo container needed)
+    # depends_on: []
   mongo:
     build: ./services/mongo
     ports:
