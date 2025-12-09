@@ -28,7 +28,7 @@ A full-stack secondhand marketplace for NYU students to buy, sell, and trade cam
 1. **Flask API** (`services/api/`) - Python REST backend
    - Docker Image (CI): [leoli120959/marketplace-api:latest](https://hub.docker.com/r/leoli120959/marketplace-api)  
    - Docker Image (App Platform): [leoli120959/swap-hub-api:latest](https://hub.docker.com/r/leoli120959/swap-hub-api)
-   - Port: 5000 (mapped to 5002 via compose)
+   - Port: env `PORT` (compose sets 5001 and maps to host 5002; default 5000 if unset)
 
 2. **MongoDB** (`services/mongo/`) - Data persistence
    - Docker Image: [leoli120959/marketplace-mongo:latest](https://hub.docker.com/r/leoli120959/marketplace-mongo)
@@ -140,7 +140,7 @@ Pre-built images available on Docker Hub:
 ```bash
 # Pull and run API (App Platform image)
 docker pull leoli120959/swap-hub-api:latest
-docker run -p 5000:5000 leoli120959/swap-hub-api:latest
+docker run -p 5002:5001 -e PORT=5001 leoli120959/swap-hub-api:latest
 
 # Pull and run MongoDB
 docker pull leoli120959/marketplace-mongo:latest
