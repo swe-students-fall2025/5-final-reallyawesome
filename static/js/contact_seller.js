@@ -52,7 +52,9 @@ async function contactSeller(listingId) {
             const threadResponse = await createThread(
                 currentUser.id,
                 listing.user.id,
-                listingId
+                listingId,
+                currentUser.nickname || currentUser.name || `User ${currentUser.id}`,
+                listing.user.nickname || listing.user.name || `User ${listing.user.id}`
             );
             threadId = threadResponse.id || threadResponse;
         }
