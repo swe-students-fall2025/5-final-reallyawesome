@@ -46,20 +46,15 @@ async function loadCommunities() {
     try {
         const communities = await API.getCommunities();
         updateCommunities(communities);
-        UI.renderCommunities(communities, communities[0]?.id);
-
-        if (communities.length > 0) {
-            updateCurrentCommunity(communities[0].id);
-        }
+        UI.renderCommunities(communities, null);
+        updateCurrentCommunity(null);
     } catch (error) {
         console.error('Failed to load communities:', error);
         // Fallback to mock communities so UI remains usable
         const mockCommunities = getMockCommunities();
         updateCommunities(mockCommunities);
-        UI.renderCommunities(mockCommunities, mockCommunities[0]?.id);
-        if (mockCommunities.length > 0) {
-            updateCurrentCommunity(mockCommunities[0].id);
-        }
+        UI.renderCommunities(mockCommunities, null);
+        updateCurrentCommunity(null);
     }
 }
 
@@ -87,7 +82,7 @@ async function loadListings() {
 
     try {
         const currentState = getState();
-        const params = {};
+        const params = { status: 'active' };
 
         if (currentState.currentCommunity) {
             params.community_id = currentState.currentCommunity;
@@ -216,6 +211,57 @@ async function toggleFavorite(listingId) {
 }
 
 /**
+ * Allow owners to mark a listing as sold out (soft hide from feeds).
+ */
+async function markListingSold(listingId) {
+    const currentUser = getCurrentUser();
+    if (!currentUser || !currentUser.id) {
+        UI.showError('Please log in first');
+        return;
+    }
+
+    try {
+        const updated = await API.updateListing(listingId, {
+            status: 'sold',
+            user_id: currentUser.id
+        });
+
+        UI.showSuccess('Listing marked as sold out');
+
+        // Refresh main feed and favorites (My Wish) to remove the sold item.
+        await loadListings();
+        try {
+            await loadUserFavorites();
+            refreshFavoriteModal();
+        } catch (favError) {
+            console.warn('Failed to refresh favorites after marking sold:', favError);
+        }
+
+        // If the seller is viewing their listings, refresh the modal contents.
+        const listingsModal = document.getElementById('myListingsModal');
+        if (listingsModal && listingsModal.classList.contains('active')) {
+            try {
+                await openMyListingsModal();
+            } catch (modalError) {
+                console.warn('Failed to refresh my listings modal:', modalError);
+            }
+        }
+
+        // Update the detail modal to reflect new status without closing it.
+        const detailContent = document.getElementById('detailContent');
+        if (detailContent && updated) {
+            const ownerId = String(updated.user?.id || updated.user_id || '');
+            const isOwner = currentUser && String(currentUser.id) === ownerId;
+            detailContent.innerHTML = UI.renderListingDetail(updated, { isOwner });
+            refreshDetailFavoriteButton(listingId);
+        }
+    } catch (error) {
+        console.error('Failed to mark listing sold:', error);
+        UI.showError('Failed to mark as sold out');
+    }
+}
+
+/**
  * Sync the favorite button in the listing detail modal with current state.
  */
 function refreshDetailFavoriteButton(listingId) {
@@ -275,9 +321,12 @@ async function showListingDetail(listingId) {
     try {
         const listing = await API.getListing(listingId);
         const detailContent = document.getElementById('detailContent');
+        const currentUser = getCurrentUser();
+        const listingOwnerId = String(listing.user?.id || listing.user_id || listing.user?.user_id || '');
+        const isOwner = currentUser && String(currentUser.id) === listingOwnerId;
 
         if (detailContent) {
-            detailContent.innerHTML = UI.renderListingDetail(listing);
+            detailContent.innerHTML = UI.renderListingDetail(listing, { isOwner });
             refreshDetailFavoriteButton(listingId);
             const carouselId = `detailCarousel-${String(listing.id).replace(/'/g, "\\'")}`;
             if (listing.images && listing.images.length > 1) {
@@ -293,6 +342,8 @@ async function showListingDetail(listingId) {
                     if (!id || !action) return;
                     if (action === 'contact-seller') {
                         contactSeller(id);
+                    } else if (action === 'mark-sold') {
+                        markListingSold(id);
                     }
                 });
                 detailContent.dataset.bound = '1';
@@ -307,7 +358,10 @@ async function showListingDetail(listingId) {
         const listing = currentState.listings.find(l => l.id === listingId);
 
         if (listing && document.getElementById('detailContent')) {
-            document.getElementById('detailContent').innerHTML = UI.renderListingDetail(listing);
+            const currentUser = getCurrentUser();
+            const listingOwnerId = String(listing.user?.id || listing.user_id || listing.user?.user_id || '');
+            const isOwner = currentUser && String(currentUser.id) === listingOwnerId;
+            document.getElementById('detailContent').innerHTML = UI.renderListingDetail(listing, { isOwner });
             refreshDetailFavoriteButton(listingId);
             openModal('detailModal');
         } else {
@@ -397,7 +451,7 @@ async function searchListings(query) {
     }
 
     try {
-        const listings = await API.searchListings(query);
+        const listings = await API.searchListings(query, { status: 'active' });
         updateListings(listings);
         UI.renderListings(listings);
     } catch (error) {

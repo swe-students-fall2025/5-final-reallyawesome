@@ -51,19 +51,21 @@
 }
 
 .modal-content.chat-dialog {
-    max-width: 620px;
+    max-width: 720px;
     width: 100%;
-    height: auto;
-    max-height: 80vh;
+    height: 90vh;
+    max-height: 90vh;
     border-radius: 20px;
-    padding: 22px 24px 18px;
+    padding: 22px 24px 14px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .chat-surface {
     flex: 1;
-    min-height: 260px;
-    max-height: 60vh;
+    min-height: 240px;
+    max-height: none;
     overflow-y: auto;
     border: 1px solid rgba(25, 255, 245, 0.12);
     border-radius: 14px;
@@ -118,6 +120,12 @@
     color: #ffffff;
     border-color: rgba(255, 0, 212, 0.45);
     box-shadow: 0 0 22px rgba(255, 0, 212, 0.4);
+}
+
+/* Detail view should scroll naturally; don't let header cover content */
+#detailModal .modal-header {
+    position: static;
+    background: transparent;
 }
 
 
@@ -197,6 +205,43 @@
     margin-top: 6px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.detail-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: rgba(255, 77, 125, 0.18);
+    color: #ff4d7d;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid rgba(255, 77, 125, 0.35);
+}
+
+.owner-actions {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.owner-actions .submit-btn {
+    width: auto;
+    min-width: 260px;
+    align-self: center;
+    margin-top: 12px;
+}
+
+.owner-note {
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(109, 130, 172, 0.2);
+    color: var(--color-text-secondary);
+    font-size: 14px;
 }
 
 

@@ -71,6 +71,18 @@ class _InMemoryCollection:
                 matched += 1
         return type("UpdateResult", (), {"matched_count": matched, "modified_count": matched})
 
+    def update_one(self, filter_query, update):
+        """Simplified update_one supporting $set."""
+        modified = 0
+        for doc in self._docs:
+            if self._matches(doc, filter_query):
+                if "$set" in update:
+                    for k, v in update["$set"].items():
+                        doc[k] = v
+                modified = 1
+                break
+        return type("UpdateResult", (), {"matched_count": modified, "modified_count": modified})
+
     def _matches(self, doc, query):
         for key, value in query.items():
             if isinstance(value, dict) and "$regex" in value:
@@ -137,10 +149,18 @@ class Database:
         if filters.get("q"):
             query["title"] = {"$regex": filters["q"], "$options": "i"}
 
+        status_filter = filters.get("status")
+        # Avoid filtering for "active" so items without status still show up.
+        if status_filter and status_filter not in ("all", "active"):
+            query["status"] = status_filter
+
         items: List[Dict[str, Any]] = []
         for doc in self._db.items.find(query).sort("created_at", -1):
             doc = dict(doc)
             doc["id"] = str(doc.pop("_id", ""))
+            doc["status"] = doc.get("status") or "active"
+            if status_filter == "active" and doc["status"] != "active":
+                continue
             if "name" not in doc and "title" in doc:
                 doc["name"] = doc["title"]
             items.append(doc)
@@ -174,12 +194,23 @@ class Database:
             "price": price,
             "description": description,
             "created_at": now.isoformat(),
+            "status": "active",
         }
         item.update(extra)
         result = self._db.items.insert_one(item)
         item.pop("_id", None)
         item["id"] = str(result.inserted_id)
         return item
+
+    def update_item(self, item_id: str, updates: Dict[str, Any]) -> bool:
+        """Update a listing by id with provided fields."""
+        try:
+            oid = ObjectId(item_id)
+        except Exception:
+            return False
+
+        result = self._db.items.update_one({"_id": oid}, {"$set": updates})
+        return bool(getattr(result, "matched_count", 0))
 
     def seed_if_empty(self):
         if self._db.items.estimated_document_count() == 0:
@@ -194,6 +225,7 @@ class Database:
                         "category": "other",
                         "meetup_point": "Campus Center",
                         "user_id": "1",
+                        "status": "active",
                         "user": {
                             "id": "1",
                             "nickname": "Demo Seller",
@@ -209,6 +241,7 @@ class Database:
                         "category": "textbook",
                         "meetup_point": "Library",
                         "user_id": "2",
+                        "status": "active",
                         "user": {
                             "id": "2",
                             "nickname": "Student B",
