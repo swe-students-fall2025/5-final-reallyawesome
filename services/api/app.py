@@ -119,6 +119,7 @@ def create_app(testing: bool = False):
                 "category": request.args.get("category"),
                 "community_id": request.args.get("community_id"),
                 "q": request.args.get("q"),
+                "status": request.args.get("status") or "active",
             }
             items = db.list_items(filters)
             return jsonify(items), 200
@@ -185,8 +186,40 @@ def create_app(testing: bool = False):
         )
         return jsonify(listing), 201
 
-    @app.route("/api/listings/<item_id>", methods=["GET"])
+    @app.route("/api/listings/<item_id>", methods=["GET", "PUT"])
     def get_listing(item_id):
+        if request.method == "PUT":
+            payload = request.get_json(force=True, silent=True) or {}
+            status = payload.get("status")
+            user_id = str(payload.get("user_id") or "")
+
+            listing = db.get_item(item_id)
+            if not listing:
+                return jsonify({"error": "Not found"}), 404
+
+            listing_owner = str(listing.get("user_id") or listing.get("user", {}).get("id") or "")
+            if listing_owner and listing_owner != user_id:
+                return jsonify({"error": "Forbidden"}), 403
+
+            updates = {}
+            if status:
+                updates["status"] = status
+
+            if not updates:
+                return jsonify({"error": "No fields to update"}), 400
+
+            updated = db.update_item(item_id, updates)
+            if not updated:
+                return jsonify({"error": "Update failed"}), 400
+
+            if status == "sold":
+                # Remove from favorites so "My Wish" no longer shows sold-out items.
+                for fav_user, fav_set in favorites.items():
+                    favorites[fav_user] = {fid for fid in fav_set if fid != str(item_id)}
+
+            refreshed = db.get_item(item_id)
+            return jsonify(refreshed), 200
+
         item = db.get_item(item_id)
         if not item:
             return jsonify({"error": "Not found"}), 404
@@ -195,12 +228,14 @@ def create_app(testing: bool = False):
     @app.route("/api/listings/search", methods=["GET"])
     def search_listings():
         q = request.args.get("q")
-        items = db.list_items({"q": q})
+        status = request.args.get("status") or "active"
+        items = db.list_items({"q": q, "status": status})
         return jsonify(items), 200
 
     @app.route("/api/users/<user_id>/listings", methods=["GET"])
     def get_user_listings(user_id):
-        items = db.list_items({"user_id": user_id})
+        status = request.args.get("status") or "all"
+        items = db.list_items({"user_id": user_id, "status": status})
         return jsonify(items), 200
 
     # ---- Auth (demo) ----
@@ -298,7 +333,8 @@ def create_app(testing: bool = False):
     def get_user_favorites(user_id):
         fav_ids = list(favorites.get(user_id, []))
         items = [db.get_item(fid) for fid in fav_ids]
-        items = [i for i in items if i]
+        items = [i for i in items if i and (i.get("status") or "active") == "active"]
+        fav_ids = [i["id"] for i in items]
         return jsonify({"favorites": items, "favorite_ids": fav_ids}), 200
 
     # ---- Threads & messages ----

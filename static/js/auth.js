@@ -67,6 +67,12 @@ async function apiRequest(url, options = {}) {
 // ===== Login =====
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
+    // Clear any cached autofill values on load
+    const emailInput = loginForm.querySelector('input[name="email"]');
+    const passwordInput = loginForm.querySelector('input[name="password"]');
+    if (emailInput) emailInput.value = '';
+    if (passwordInput) passwordInput.value = '';
+
     loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
@@ -153,6 +159,12 @@ function validateRegisterForm(form) {
 }
 
 if (registerForm) {
+    // Clear autofill on load for safety
+    ['nickname', 'email', 'password', 'passwordConfirm'].forEach((name) => {
+        const field = registerForm.querySelector(`[name="${name}"]`);
+        if (field) field.value = '';
+    });
+
     registerForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 

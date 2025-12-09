@@ -239,7 +239,7 @@ const UI = {
     /**
      * Render listing detail
      */
-    renderListingDetail(listing) {
+    renderListingDetail(listing, options = {}) {
         const listingId = String(listing.id);
         const listingIdSafe = listingId.replace(/'/g, "\\'");
         const listingIdAttr = listingIdSafe;
@@ -267,6 +267,9 @@ const UI = {
             ? `<img src="${sellerAvatar}" alt="${safeSellerName}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid #e5e7eb;">`
             : `<div style="width:28px;height:28px;border-radius:50%;background:#e0e7ff;color:#4338ca;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:1px solid #c7d2fe;">${sellerInitial}</div>`;
         const meetupPoint = listing.meetup_point || 'Meetup TBD';
+        const statusKey = (listing.status || 'active').toString().toLowerCase();
+        const isSold = statusKey === 'sold';
+        const isOwner = !!options.isOwner;
         const images = hasImages ? listing.images.filter(Boolean) : (primaryImage ? [primaryImage] : []);
         const carouselId = `detailCarousel-${listingIdSafe}`;
         const detailImage = images.length
@@ -289,6 +292,27 @@ const UI = {
             : `<div class="listing-placeholder" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                     ${listing.title}
                </div>`;
+
+        const statusBadge = isSold
+            ? `<span class="detail-status-badge">Sold out</span>`
+            : '';
+        const contactButton = isOwner
+            ? ''
+            : `<button class="submit-btn" data-action="contact-seller" data-listing-id="${listingIdAttr}">
+                    💬 Contact seller
+               </button>`;
+
+        const ownerActions = isOwner
+            ? `
+                <div class="owner-actions">
+                    ${isSold
+                        ? `<div class="owner-note">You marked this as sold out. Buyers can still message you via existing chats.</div>`
+                        : `<button class="submit-btn" data-action="mark-sold" data-listing-id="${listingIdAttr}" style="width:auto; padding:12px 18px; margin-top:4px;">
+                                Mark as Sold Out
+                           </button>`}
+                </div>
+              `
+            : '';
         
         return `
             <div style="margin-bottom: 15px; position: relative;">
@@ -322,7 +346,10 @@ const UI = {
                 </button>
             </div>
             <h3 style="font-size: 18px; margin-bottom: 10px;">${listing.title}</h3>
-            <div class="listing-price" style="margin-bottom: 15px;">$${listing.price}</div>
+            <div class="listing-price-row" style="margin-bottom: 15px; display:flex; align-items:center; gap:10px;">
+                <div class="listing-price">$${listing.price}</div>
+                ${statusBadge}
+            </div>
             <div style="margin-bottom: 15px;">
                 <strong>Item description:</strong>
                 <p style="color: #6b7280; margin-top: 5px;">
@@ -337,9 +364,8 @@ const UI = {
                 <strong>Seller:</strong> 
                 <span class="seller-name detail">${safeSellerName}</span>
             </div>
-            <button class="submit-btn" data-action="contact-seller" data-listing-id="${listingIdAttr}">
-                💬 Contact seller
-            </button>
+            ${contactButton}
+            ${ownerActions}
         `;
     },
     

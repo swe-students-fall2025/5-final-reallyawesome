@@ -22,7 +22,7 @@
             <div class="neon-divider"></div>
 
             <!-- Register form -->
-            <form id="registerForm" class="auth-form">
+            <form id="registerForm" class="auth-form" autocomplete="off">
                 <div class="form-group">
                     <label for="registerNickname">Nickname *</label>
                     <input type="text" id="registerNickname" name="nickname" 
@@ -34,7 +34,7 @@
                 <div class="form-group">
                     <label for="registerEmail">Email *</label>
                     <input type="email" id="registerEmail" name="email" 
-                           placeholder="id@nyu.edu" required>
+                           placeholder="id@nyu.edu" required autocomplete="off">
                     <span class="form-hint">Campus email for login and recovery</span>
                 </div>
 
@@ -49,7 +49,7 @@
                     <label for="registerPasswordConfirm">Confirm password *</label>
                     <input type="password" id="registerPasswordConfirm" 
                            name="passwordConfirm" 
-                           placeholder="Re-enter password" required>
+                           placeholder="Re-enter password" required autocomplete="new-password">
                 </div>
 
                 <button type="submit" class="btn btn-primary">
