@@ -5,12 +5,15 @@
 [![Test Coverage](https://img.shields.io/badge/coverage-86%25-brightgreen)](./services/api/tests/)
 
 A full-stack secondhand marketplace for NYU students to buy, sell, and trade campus items. Built with Flask, MongoDB, Docker, and deployed to DigitalOcean App Platform.
+The intuition we had for this project came from our own experiences—every semester, our team members buy textbooks and furniture at the start, but at the end of the semester, we have to discard or waste them. We don't want to waste money or these resources, and we know there are students in the market who really want to buy these secondhand textbooks or items. Current solutions like Facebook Marketplace lack campus context, safety through university verification, and student-specific features. NYU Campus Marketplace solves this by creating a trusted, campus-centric trading platform exclusively for NYU students, featuring NYU email verification, campus-specific filtering (Brooklyn vs Washington Square), course code tagging for textbooks, and suggested meetup points students actually know, like Rogers Hall or Bobst Library.
 
 ## 👥 Team
 
 - **Leo Li** - [Leo Li](https://github.com/LiShangcheng)
 - **Leo Qian** - [Leo Qian](https://github.com/Leo-codingMaster)
 - **Hanjun Deng** - [Hanjun Deng](https://github.com/Deng-Hanjun)
+- **Leo Fu** - [Leo Fu](https://github.com/LeoFYH)
+- **Kaiyuan Wu** - [Kaiyuan Wu](https://github.com/qiexian-mf)
 
 ## 📋 Features
 
